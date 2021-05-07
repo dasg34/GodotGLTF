@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+﻿using Godot;
 
 namespace UnityGLTF
 {
@@ -13,8 +13,8 @@ namespace UnityGLTF
 
 		public virtual Texture DiffuseTexture
 		{
-			get { return _material.GetTexture("_MainTex"); }
-			set { _material.SetTexture("_MainTex", value); }
+			get { return _material.AlbedoTexture; }
+			set { _material.AlbedoTexture = value; }
 		}
 
 		// not implemented by the Standard shader
@@ -24,6 +24,7 @@ namespace UnityGLTF
 			set { return; }
 		}
 
+		// Not support in godot
 		public virtual Vector2 DiffuseXOffset
 		{
 			get { return diffuseOffset; }
@@ -31,7 +32,6 @@ namespace UnityGLTF
 			{
 				diffuseOffset = value;
 				var unitySpaceVec = new Vector2(diffuseOffset.x, 1 - DiffuseXScale.y - diffuseOffset.y);
-				_material.SetTextureOffset("_MainTex", unitySpaceVec);
 			}
 		}
 
@@ -41,14 +41,11 @@ namespace UnityGLTF
 			set { return; }
 		}
 
+		// Not support in godot
 		public virtual Vector2 DiffuseXScale
 		{
-			get { return _material.GetTextureScale("_MainTex"); }
-			set
-			{
-				_material.SetTextureScale("_MainTex", value);
-				DiffuseXOffset = diffuseOffset;
-			}
+			get;
+			set;
 		}
 
 		public virtual int DiffuseXTexCoord
@@ -59,18 +56,16 @@ namespace UnityGLTF
 
 		public virtual Color DiffuseFactor
 		{
-			get { return _material.GetColor("_Color"); }
-			set { _material.SetColor("_Color", value); }
+			get { return _material.AlbedoColor; }
+			set { _material.AlbedoColor = value; }
 		}
 
 		public virtual Texture SpecularGlossinessTexture
 		{
-			get { return _material.GetTexture("_SpecGlossMap"); }
+			get { return _material.AlbedoTexture; }
 			set
 			{
-				_material.SetTexture("_SpecGlossMap", value);
-				_material.SetFloat("_SmoothnessTextureChannel", 0);
-				_material.EnableKeyword("_SPECGLOSSMAP");
+				_material.AlbedoTexture = value;
 			}
 		}
 
@@ -81,6 +76,7 @@ namespace UnityGLTF
 			set { return; }
 		}
 
+		// Not support in godot
 		public virtual Vector2 SpecularGlossinessXOffset
 		{
 			get { return specGlossOffset; }
@@ -88,7 +84,6 @@ namespace UnityGLTF
 			{
 				specGlossOffset = value;
 				var unitySpaceVec = new Vector2(specGlossOffset.x, 1 - SpecularGlossinessXScale.y - specGlossOffset.y);
-				_material.SetTextureOffset("_SpecGlossMap", unitySpaceVec);
 			}
 		}
 
@@ -98,13 +93,11 @@ namespace UnityGLTF
 			set { return; }
 		}
 
+		// Not support in godot
 		public virtual Vector2 SpecularGlossinessXScale
 		{
-			get { return _material.GetTextureScale("_SpecGlossMap"); }
-			set {
-				_material.SetTextureScale("_SpecGlossMap", value);
-				SpecularGlossinessXOffset = specGlossOffset;
-			}
+			get;
+			set;
 		}
 
 		public virtual int SpecularGlossinessXTexCoord
@@ -115,23 +108,22 @@ namespace UnityGLTF
 
 		public virtual Vector3 SpecularFactor
 		{
-			get { return _material.GetVector("_SpecColor"); }
-			set { _material.SetVector("_SpecColor", value); }
+			get;
+			set;
 		}
 
 		public virtual double GlossinessFactor
 		{
-			get { return _material.GetFloat("_GlossMapScale"); }
+			get { return _material.Roughness; }
 			set
 			{
-				_material.SetFloat("_GlossMapScale", (float)value);
-				_material.SetFloat("_Glossiness", (float)value);
+				_material.Roughness = 1 - Mathf.Clamp((float)value, 0.0f, 1.0f);
 			}
 		}
 
 		public override IUniformMap Clone()
 		{
-			var copy = new SpecGloss2StandardMap(new Material(_material));
+			var copy = new SpecGloss2StandardMap(_material);
 			base.Copy(copy);
 			return copy;
 		}

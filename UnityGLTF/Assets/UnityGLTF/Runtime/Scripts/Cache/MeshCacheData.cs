@@ -1,7 +1,7 @@
 ﻿using GLTF;
 using System;
 using System.Collections.Generic;
-using UnityEngine;
+using Godot;
 
 namespace UnityGLTF.Cache
 {
@@ -14,7 +14,7 @@ namespace UnityGLTF.Cache
 		}
 
 		public List<PrimitiveCacheData> Primitives = new List<PrimitiveCacheData>(5);
-		public Mesh LoadedMesh { get; set; }
+		public ArrayMesh LoadedMesh { get; set; }
 
 		/// <summary>
 		/// Unloads the meshes in this cache.
@@ -23,7 +23,7 @@ namespace UnityGLTF.Cache
 		{
 			if (LoadedMesh != null)
 			{
-				UnityEngine.Object.Destroy(LoadedMesh);
+				LoadedMesh.Free();
 				LoadedMesh = null;
 			}
 		}

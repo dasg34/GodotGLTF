@@ -1,5 +1,5 @@
 ﻿using System;
-using UnityEngine;
+using Godot;
 using AlphaMode = GLTF.Schema.AlphaMode;
 using CullMode = UnityEngine.Rendering.CullMode;
 
@@ -39,11 +39,13 @@ namespace UnityGLTF
 
 		public override Texture MetallicRoughnessTexture
 		{
-			get { return _material.GetTexture("_MetallicGlossMap"); }
+			get { return _material.MetallicTexture; /* FIXME.. return with RoughnessTexture?*/ }
 			set
 			{
-				_material.SetTexture("_MetallicGlossMap", value);
-				_material.EnableKeyword("_METALLICGLOSSMAP");
+				_material.MetallicTexture = value;
+				_material.MetallicTextureChannel = SpatialMaterial.TextureChannel.Blue;
+				_material.RoughnessTexture = value;
+				_material.RoughnessTextureChannel = SpatialMaterial.TextureChannel.Green;
 			}
 		}
 
@@ -53,14 +55,14 @@ namespace UnityGLTF
 			set { return; }
 		}
 
+		//Not support in godot
 		public override Vector2 MetallicRoughnessXOffset
 		{
 			get { return metalRoughOffset; }
 			set
 			{
+
 				metalRoughOffset = value;
-				var unitySpaceVec = new Vector2(metalRoughOffset.x, 1 - MetallicRoughnessXScale.y - metalRoughOffset.y);
-				_material.SetTextureOffset("_MetallicGlossMap", unitySpaceVec);
 			}
 		}
 
@@ -70,13 +72,12 @@ namespace UnityGLTF
 			set { return; }
 		}
 
+		//Not support in godot
 		public override Vector2 MetallicRoughnessXScale
 		{
-			get { return _material.GetTextureScale("_MetallicGlossMap"); }
+			get { return new Vector2(); }
 			set
 			{
-				_material.SetTextureScale("_MetallicGlossMap", value);
-				MetallicRoughnessXOffset = metalRoughOffset;
 			}
 		}
 
@@ -88,13 +89,13 @@ namespace UnityGLTF
 
 		public override double RoughnessFactor
 		{
-			get { return _material.GetFloat("_Glossiness"); }
-			set { _material.SetFloat("_Glossiness", (float)value); }
+			get { return _material.Roughness; }
+			set { _material.Roughness = (float)value; }
 		}
 
 		public override IUniformMap Clone()
 		{
-			var copy = new MetalRoughMap(new Material(_material));
+			var copy = new MetalRoughMap(_material);
 			base.Copy(copy);
 			return copy;
 		}

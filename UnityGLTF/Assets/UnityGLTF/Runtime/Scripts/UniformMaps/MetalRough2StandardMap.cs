@@ -1,10 +1,12 @@
-﻿using UnityEngine;
+﻿using Godot;
+using System;
 
 namespace UnityGLTF
 {
 	public class MetalRough2StandardMap : StandardMap, IMetalRoughUniformMap
 	{
 		private Vector2 baseColorOffset = new Vector2(0, 0);
+		private Vector2 baseColorScale = new Vector2(0, 0);
 
 		public MetalRough2StandardMap(int MaxLOD = 1000) : base("Standard", MaxLOD) { }
 		protected MetalRough2StandardMap(string shaderName, int MaxLOD = 1000) : base(shaderName, MaxLOD) { }
@@ -12,8 +14,8 @@ namespace UnityGLTF
 
 		public virtual Texture BaseColorTexture
 		{
-			get { return _material.GetTexture("_MainTex"); }
-			set { _material.SetTexture("_MainTex", value); }
+			get { return _material.AlbedoTexture; }
+			set { _material.AlbedoTexture = value; }
 		}
 
 		// not implemented by the Standard shader
@@ -28,8 +30,8 @@ namespace UnityGLTF
 			get { return baseColorOffset; }
 			set {
 				baseColorOffset = value;
-				var unitySpaceVec = new Vector2(baseColorOffset.x, 1 - BaseColorXScale.y - baseColorOffset.y);
-				_material.SetTextureOffset("_MainTex", unitySpaceVec);
+				var unitySpaceVec = new Vector3(baseColorOffset.x, BaseColorXScale.y, 0);
+				_material.Uv1Offset = unitySpaceVec;
 			}
 		}
 
@@ -41,10 +43,10 @@ namespace UnityGLTF
 
 		public virtual Vector2 BaseColorXScale
 		{
-			get { return _material.GetTextureScale("_MainTex"); }
+			get { return baseColorScale; }
 			set {
-				_material.SetTextureScale("_MainTex", value);
-				BaseColorXOffset = baseColorOffset;
+				baseColorScale = value;
+				_material.Uv1Scale = new Vector3(baseColorScale.x, baseColorScale.y, 1);
 			}
 		}
 
@@ -56,8 +58,8 @@ namespace UnityGLTF
 
 		public virtual Color BaseColorFactor
 		{
-			get { return _material.GetColor("_Color"); }
-			set { _material.SetColor("_Color", value); }
+			get { return _material.AlbedoColor; }
+			set { _material.AlbedoColor = value; }
 		}
 
 		public virtual Texture MetallicRoughnessTexture
@@ -103,8 +105,8 @@ namespace UnityGLTF
 
 		public virtual double MetallicFactor
 		{
-			get { return _material.GetFloat("_Metallic"); }
-			set { _material.SetFloat("_Metallic", (float)value); }
+			get { return _material.Metallic; }
+			set { _material.Metallic = Convert.ToSingle(value); }
 		}
 
 		// not supported by the Standard shader
@@ -116,7 +118,7 @@ namespace UnityGLTF
 
 		public override IUniformMap Clone()
 		{
-			var copy = new MetalRough2StandardMap(new Material(_material));
+			var copy = new MetalRough2StandardMap(_material);
 			base.Copy(copy);
 			return copy;
 		}

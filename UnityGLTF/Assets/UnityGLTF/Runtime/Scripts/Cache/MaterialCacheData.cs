@@ -1,6 +1,6 @@
 ﻿using GLTF.Schema;
 using System;
-using UnityEngine;
+using Godot;
 
 namespace UnityGLTF.Cache
 {
@@ -22,13 +22,13 @@ namespace UnityGLTF.Cache
 		{
 			if (UnityMaterial != null)
 			{
-				UnityEngine.Object.Destroy(UnityMaterial);
+				UnityMaterial.Free();
 				UnityMaterial = null;
 			}
 
 			if (UnityMaterialWithVertexColor != null)
 			{
-				UnityEngine.Object.Destroy(UnityMaterialWithVertexColor);
+				UnityMaterialWithVertexColor.Free();
 				UnityMaterialWithVertexColor = null;
 			}
 		}

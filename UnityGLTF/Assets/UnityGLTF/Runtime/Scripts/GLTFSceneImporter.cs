@@ -10,13 +10,13 @@ using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEngine;
-using UnityEngine.Rendering;
+using Godot;
 using UnityGLTF.Cache;
 using UnityGLTF.Extensions;
 using UnityGLTF.Loader;
 using Matrix4x4 = GLTF.Math.Matrix4x4;
 using Object = UnityEngine.Object;
+using System.Diagnostics;
 #if !WINDOWS_UWP
 using ThreadPriority = System.Threading.ThreadPriority;
 #endif
@@ -40,21 +40,19 @@ namespace UnityGLTF
 
 	public class UnityMeshData
 	{
-		public Vector3[] Vertices;
-		public Vector3[] Normals;
-		public Vector4[] Tangents;
-		public Vector2[] Uv1;
-		public Vector2[] Uv2;
-		public Vector2[] Uv3;
-		public Vector2[] Uv4;
-		public Color[] Colors;
-		public BoneWeight[] BoneWeights;
+		public Vector3[][] Vertices;
+		public Vector3[][] Normals;
+		public float[][] Tangents;
+		public Vector2[][] Uv1;
+		public Vector2[][] Uv2;
+		public Color[][] Colors;
+		public float[][] BoneWeights;
 
 		public Vector3[][] MorphTargetVertices;
 		public Vector3[][] MorphTargetNormals;
 		public Vector3[][] MorphTargetTangents;
 
-		public MeshTopology[] Topology;
+		public Godot.Mesh.PrimitiveType[] Topology;
 		public int[][] Indices;
 	}
 
@@ -130,7 +128,7 @@ namespace UnityGLTF
 		{
 			get
 			{
-				return Application.isEditor ? false : _isMultithreaded;
+				return Engine.EditorHint ? false : _isMultithreaded;
 			}
 			set
 			{
@@ -139,14 +137,14 @@ namespace UnityGLTF
 		}
 
 		/// <summary>
-		/// The parent transform for the created GameObject
+		/// The parent Node for the created Node
 		/// </summary>
-		public Transform SceneParent { get; set; }
+		public Godot.Node SceneParent { get; set; }
 
 		/// <summary>
 		/// The last created object
 		/// </summary>
-		public GameObject CreatedObject { get; private set; }
+		public Godot.Node CreatedObject { get; private set; }
 
 		/// <summary>
 		/// Adds colliders to primitive objects when created
@@ -198,7 +196,7 @@ namespace UnityGLTF
 		protected ImportOptions _options;
 		protected MemoryChecker _memoryChecker;
 
-		protected GameObject _lastLoadedScene;
+		protected Godot.Node _lastLoadedScene;
 		protected readonly GLTFMaterial DefaultMaterial = new GLTFMaterial();
 		protected MaterialCacheData _defaultLoadedMaterial = null;
 
@@ -277,7 +275,7 @@ namespace UnityGLTF
 			Cleanup();
 		}
 
-		public GameObject LastLoadedScene
+		public Godot.Node LastLoadedScene
 		{
 			get { return _lastLoadedScene; }
 		}
@@ -290,7 +288,7 @@ namespace UnityGLTF
 		/// <param name="onLoadComplete">Callback function for when load is completed</param>
 		/// <param name="cancellationToken">Cancellation token for loading</param>
 		/// <returns></returns>
-		public async Task LoadSceneAsync(int sceneIndex = -1, bool showSceneObj = true, Action<GameObject, ExceptionDispatchInfo> onLoadComplete = null, CancellationToken cancellationToken = default(CancellationToken), IProgress<ImportProgress> progress = null)
+		public async Task LoadSceneAsync(int sceneIndex = -1, bool showSceneObj = true, Action<Godot.Node, ExceptionDispatchInfo> onLoadComplete = null, CancellationToken cancellationToken = default(CancellationToken), IProgress<ImportProgress> progress = null)
 		{
 			try
 			{
@@ -350,7 +348,7 @@ namespace UnityGLTF
 
 			onLoadComplete?.Invoke(LastLoadedScene, null);
 		}
-
+		/*FIXME
 		public IEnumerator LoadScene(int sceneIndex = -1, bool showSceneObj = true, Action<GameObject, ExceptionDispatchInfo> onLoadComplete = null)
 		{
 			return LoadSceneAsync(sceneIndex, showSceneObj, onLoadComplete).AsCoroutine();
@@ -369,7 +367,7 @@ namespace UnityGLTF
 				InitializeGltfTopLevelObject();
 			});
 		}
-
+				*/
 		/// <summary>
 		/// Load a Material from the glTF by index
 		/// </summary>
@@ -399,7 +397,7 @@ namespace UnityGLTF
 		/// </summary>
 		/// <param name="meshIndex"></param>
 		/// <returns></returns>
-		public virtual async Task<Mesh> LoadMeshAsync(int meshIndex, CancellationToken cancellationToken)
+		public virtual async Task<ArrayMesh> LoadMeshAsync(int meshIndex, CancellationToken cancellationToken)
 		{
 			await SetupLoad(async () =>
 			{
@@ -424,7 +422,8 @@ namespace UnityGLTF
 		/// </summary>
 		private void InitializeGltfTopLevelObject()
 		{
-			InstantiatedGLTFObject instantiatedGltfObject = CreatedObject.AddComponent<InstantiatedGLTFObject>();
+			var instantiatedGltfObject = new InstantiatedGLTFObject();
+			CreatedObject.AddChild(instantiatedGltfObject);
 			instantiatedGltfObject.CachedData = new RefCountedCacheData
 			(
 				_assetCache.MaterialCache,
@@ -434,7 +433,7 @@ namespace UnityGLTF
 			);
 		}
 
-		private async Task ConstructBufferData(Node node, CancellationToken cancellationToken)
+		private async Task ConstructBufferData(GLTF.Schema.Node node, CancellationToken cancellationToken)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
@@ -473,7 +472,6 @@ namespace UnityGLTF
 				}
 			}
 		}
-
 		private async Task ConstructMeshAttributes(GLTFMesh mesh, MeshId meshId)
 		{
 			int meshIndex = meshId.Id;
@@ -488,7 +486,7 @@ namespace UnityGLTF
 				MeshPrimitive primitive = mesh.Primitives[i];
 
 				await ConstructPrimitiveAttributes(primitive, meshIndex, i);
-
+				/* FIXME
 				if (primitive.Material != null)
 				{
 					await ConstructMaterialImageBuffers(primitive.Material.Value);
@@ -499,6 +497,7 @@ namespace UnityGLTF
 					// read mesh primitive targets into assetcache
 					await ConstructMeshTargets(primitive, meshIndex, i);
 				}
+				*/
 			}
 		}
 
@@ -529,22 +528,24 @@ namespace UnityGLTF
 				};
 			}
 		}
-
+#if false // FIXME
 		protected IEnumerator WaitUntilEnum(WaitUntil waitUntil)
 		{
 			yield return waitUntil;
 		}
-
+#endif
 		private async Task LoadJson(string jsonFilePath)
 		{
 #if !WINDOWS_UWP
 			var dataLoader2 = _options.DataLoader as IDataLoader2;
 			if (IsMultithreaded && dataLoader2 != null)
 			{
-				Thread loadThread = new Thread(() => _gltfStream.Stream = dataLoader2.LoadStream(jsonFilePath));
+				System.Threading.Thread loadThread = new System.Threading.Thread(() => _gltfStream.Stream = dataLoader2.LoadStream(jsonFilePath));
 				loadThread.Priority = ThreadPriority.Highest;
 				loadThread.Start();
-				RunCoroutineSync(WaitUntilEnum(new WaitUntil(() => !loadThread.IsAlive)));
+				while (loadThread.IsAlive) ;
+				//FIXME
+				//RunCoroutineSync(WaitUntilEnum(new WaitUntil(() => !loadThread.IsAlive)));
 			}
 			else
 #endif
@@ -557,10 +558,12 @@ namespace UnityGLTF
 #if !WINDOWS_UWP
 			if (IsMultithreaded)
 			{
-				Thread parseJsonThread = new Thread(() => GLTFParser.ParseJson(_gltfStream.Stream, out _gltfRoot, _gltfStream.StartPosition));
+				System.Threading.Thread parseJsonThread = new System.Threading.Thread(() => GLTFParser.ParseJson(_gltfStream.Stream, out _gltfRoot, _gltfStream.StartPosition));
 				parseJsonThread.Priority = ThreadPriority.Highest;
 				parseJsonThread.Start();
-				RunCoroutineSync(WaitUntilEnum(new WaitUntil(() => !parseJsonThread.IsAlive)));
+				while (parseJsonThread.IsAlive) ;
+				//FIXME
+				//RunCoroutineSync(WaitUntilEnum(new WaitUntil(() => !parseJsonThread.IsAlive)));
 				if (_gltfRoot == null)
 				{
 					throw new GLTFLoadException("Failed to parse glTF");
@@ -592,7 +595,6 @@ namespace UnityGLTF
 			}
 		}
 
-
 		/// <summary>
 		/// Creates a scene based off loaded JSON. Includes loading in binary and image data to construct the meshes required.
 		/// </summary>
@@ -622,7 +624,7 @@ namespace UnityGLTF
 
 			if (SceneParent != null)
 			{
-				CreatedObject.transform.SetParent(SceneParent, false);
+				SceneParent.AddChild(CreatedObject);
 			}
 
 			_lastLoadedScene = CreatedObject;
@@ -751,15 +753,18 @@ namespace UnityGLTF
 
 		protected virtual async Task ConstructUnityTexture(Stream stream, bool markGpuOnly, bool isLinear, GLTFImage image, int imageCacheIndex)
 		{
-			Texture2D texture = new Texture2D(0, 0, TextureFormat.RGBA32, GenerateMipMapsForTextures, isLinear);
-			texture.name = nameof(GLTFSceneImporter) + (image.Name != null ? ("." + image.Name) : "");
+			Image img = new Image();
+			ImageTexture imageTexture = new ImageTexture();
+			imageTexture.ResourceName = nameof(GLTFSceneImporter) + (image.Name != null ? ("." + image.Name) : "");
 
 			if (stream is MemoryStream)
 			{
 				using (MemoryStream memoryStream = stream as MemoryStream)
 				{
+
 					await YieldOnTimeoutAndThrowOnLowMemory();
-					texture.LoadImage(memoryStream.ToArray(), markGpuOnly);
+					if (LoadImageBuffer(img, memoryStream.ToArray(), image.MimeType) != Error.Ok)
+						throw new NotSupportedException($"glTF: Couldn't load image index '{imageCacheIndex}' with its given mimetype: {image.MimeType}.");
 				}
 			}
 			else
@@ -774,16 +779,42 @@ namespace UnityGLTF
 				stream.Read(buffer, 0, (int)stream.Length);
 
 				await YieldOnTimeoutAndThrowOnLowMemory();
-				//	NOTE: the second parameter of LoadImage() marks non-readable, but we can't mark it until after we call Apply()
-				texture.LoadImage(buffer, markGpuOnly);
+				if (LoadImageBuffer(img, buffer, image.MimeType) != Error.Ok)
+					throw new NotSupportedException($"glTF: Couldn't load image index '{imageCacheIndex}' with its given mimetype: {image.MimeType}.");
 			}
 
 			Debug.Assert(_assetCache.ImageCache[imageCacheIndex] == null, "ImageCache should not be loaded multiple times");
 			progressStatus.TextureLoaded++;
 			progress?.Report(progressStatus);
-			_assetCache.ImageCache[imageCacheIndex] = texture;
+			imageTexture.CreateFromImage(img);
+			_assetCache.ImageCache[imageCacheIndex] = imageTexture;
 		}
 
+		private Error LoadImageBuffer(Image img, byte[] buffer, string mimeType)
+		{
+			Error error;
+
+			switch (mimeType)
+			{
+				case "image/png":
+					error = img.LoadPngFromBuffer(buffer);
+					break;
+				case "image/jpeg":
+					error = img.LoadJpgFromBuffer(buffer);
+					break;
+				default:
+					// We can land here if we got an URI with base64-encoded data with application/* MIME type,
+					// and the optional mimeType property was not defined to tell us how to handle this data (or was invalid).
+					// So let's try PNG first, then JPEG.
+					error = img.LoadPngFromBuffer(buffer);
+					if (error != Error.Ok)
+						error = img.LoadJpgFromBuffer(buffer);
+					break;
+			}
+			return error;
+		}
+
+#if false // FIXME
 		protected virtual async Task ConstructMeshTargets(MeshPrimitive primitive, int meshIndex, int primitiveIndex)
 		{
 			var newTargets = new List<Dictionary<string, AttributeAccessor>>(primitive.Targets.Count);
@@ -842,6 +873,7 @@ namespace UnityGLTF
 				SchemaExtensions.ConvertVector3CoordinateSpace(ref attributeAccessor, SchemaExtensions.CoordinateSpaceConversionScale);
 			}
 		}
+#endif
 
 		protected virtual async Task ConstructPrimitiveAttributes(MeshPrimitive primitive, int meshIndex, int primitiveIndex)
 		{
@@ -880,9 +912,9 @@ namespace UnityGLTF
 			}
 			catch (GLTFLoadException e)
 			{
-				Debug.LogWarning(e.ToString());
+				GD.Print(e.ToString());
 			}
-			TransformAttributes(ref attributeAccessors);
+			//TransformAttributes(ref attributeAccessors);
 		}
 
 		protected void TransformAttributes(ref Dictionary<string, AttributeAccessor> attributeAccessors)
@@ -908,7 +940,7 @@ namespace UnityGLTF
 				}
 			}
 		}
-
+#if false // FIXME
 		#region Animation
 		static string RelativePathFrom(Transform self, Transform root)
 		{
@@ -1216,24 +1248,23 @@ namespace UnityGLTF
 			return clip;
 		}
 		#endregion
+#endif
 
 		protected virtual async Task ConstructScene(GLTFScene scene, bool showSceneObj, CancellationToken cancellationToken)
 		{
-			var sceneObj = new GameObject(string.IsNullOrEmpty(scene.Name) ? ("GLTFScene") : scene.Name);
+			var sceneObj = new Godot.Spatial() { Name = string.IsNullOrEmpty(scene.Name) ? ("GLTFScene") : scene.Name };
 
 			try
 			{
-				sceneObj.SetActive(showSceneObj);
+				sceneObj.SetProcess(showSceneObj);
 
-				Transform[] nodeTransforms = new Transform[scene.Nodes.Count];
 				for (int i = 0; i < scene.Nodes.Count; ++i)
 				{
 					NodeId node = scene.Nodes[i];
-					GameObject nodeObj = await GetNode(node.Id, cancellationToken);
-					nodeObj.transform.SetParent(sceneObj.transform, false);
-					nodeTransforms[i] = nodeObj.transform;
+					Godot.Node nodeObj = await GetNode(node.Id, cancellationToken);
+					sceneObj.AddChild(nodeObj);
 				}
-
+				/*FIXME
 				if (_gltfRoot.Animations != null && _gltfRoot.Animations.Count > 0)
 				{
 					// create the AnimationClip that will contain animation data
@@ -1251,6 +1282,7 @@ namespace UnityGLTF
 						}
 					}
 				}
+				*/
 
 				CreatedObject = sceneObj;
 				InitializeGltfTopLevelObject();
@@ -1258,19 +1290,20 @@ namespace UnityGLTF
 			catch (Exception ex)
 			{
 				// If some failure occured during loading, clean up the scene
-				GameObject.DestroyImmediate(sceneObj);
+				sceneObj.Free();
 				CreatedObject = null;
 
 				if (ex is OutOfMemoryException)
 				{
-					Resources.UnloadUnusedAssets();
+					//FIXME
+					//Resources.UnloadUnusedAssets();
 				}
 
 				throw;
 			}
 		}
 
-		private async Task<GameObject> GetNode(int nodeId, CancellationToken cancellationToken)
+		private async Task<Godot.Node> GetNode(int nodeId, CancellationToken cancellationToken)
 		{
 			try
 			{
@@ -1304,13 +1337,14 @@ namespace UnityGLTF
 
 				if (_assetCache.NodeCache[nodeId] != null)
 				{
-					GameObject.DestroyImmediate(_assetCache.NodeCache[nodeId]);
+					_assetCache.NodeCache[nodeId].Free();
 					_assetCache.NodeCache[nodeId] = null;
 				}
 
 				if (ex is OutOfMemoryException)
 				{
-					Resources.UnloadUnusedAssets();
+					//FIXME
+					//Resources.UnloadUnusedAssets();
 				}
 
 				throw;
@@ -1318,7 +1352,7 @@ namespace UnityGLTF
 		}
 
 
-		protected virtual async Task ConstructNode(Node node, int nodeIndex, CancellationToken cancellationToken)
+		protected virtual async Task ConstructNode(GLTF.Schema.Node node, int nodeIndex, CancellationToken cancellationToken)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
@@ -1327,28 +1361,29 @@ namespace UnityGLTF
 				return;
 			}
 
-			var nodeObj = new GameObject(string.IsNullOrEmpty(node.Name) ? ("GLTFNode" + nodeIndex) : node.Name);
+			var nodeObj = new Spatial() { Name = string.IsNullOrEmpty(node.Name) ? ("GLTFNode" + nodeIndex) : node.Name };
 			// If we're creating a really large node, we need it to not be visible in partial stages. So we hide it while we create it
-			nodeObj.SetActive(false);
+			nodeObj.SetProcess(false);
 
 			Vector3 position;
-			Quaternion rotation;
+			Quat rotation;
 			Vector3 scale;
 			node.GetUnityTRSProperties(out position, out rotation, out scale);
-			nodeObj.transform.localPosition = position;
-			nodeObj.transform.localRotation = rotation;
-			nodeObj.transform.localScale = scale;
+			
+			var basis = new Basis(new Vector3(scale.x, 0f, 0f), new Vector3(0f, scale.y, 0f), new Vector3(0f, 0f, scale.z))
+				* new Basis(rotation);
+			nodeObj.Transform = new Transform(basis, position);
 			_assetCache.NodeCache[nodeIndex] = nodeObj;
-
 			if (node.Children != null)
 			{
 				foreach (var child in node.Children)
 				{
-					GameObject childObj = await GetNode(child.Id, cancellationToken);
-					childObj.transform.SetParent(nodeObj.transform, false);
+					Godot.Node childObj = await GetNode(child.Id, cancellationToken);
+					nodeObj.AddChild(childObj);
 				}
 			}
-
+			
+			/*FIXME: lod not support in godot3?
 			const string msft_LODExtName = MSFT_LODExtensionFactory.EXTENSION_NAME;
 			MSFT_LODExtension lodsextension = null;
 			if (_gltfRoot.ExtensionsUsed != null
@@ -1397,12 +1432,14 @@ namespace UnityGLTF
 					_assetCache.NodeCache[nodeIndex] = lodGroupNodeObj;
 				}
 			}
+			*/
 
 			if (node.Mesh != null)
 			{
 				var mesh = node.Mesh.Value;
 				await ConstructMesh(mesh, node.Mesh.Id, cancellationToken);
-				var unityMesh = _assetCache.MeshCache[node.Mesh.Id].LoadedMesh;
+				var arrayMesh = _assetCache.MeshCache[node.Mesh.Id].LoadedMesh;
+
 				var materials = node.Mesh.Value.Primitives.Select(p =>
 					p.Material != null ?
 					_assetCache.MaterialCache[p.Material.Id].UnityMaterialWithVertexColor :
@@ -1414,6 +1451,7 @@ namespace UnityGLTF
 					(morphTargets != null ? new List<double>(morphTargets.Select(mt => 0.0)) : null);
 				if (node.Skin != null || weights != null)
 				{
+					/*FIXME
 					var renderer = nodeObj.AddComponent<SkinnedMeshRenderer>();
 					renderer.sharedMesh = unityMesh;
 					renderer.sharedMaterials = materials;
@@ -1431,22 +1469,36 @@ namespace UnityGLTF
 							renderer.SetBlendShapeWeight(i, (float)(weights[i] * 100));
 						}
 					}
+					*/
 				}
 				else
 				{
-					var filter = nodeObj.AddComponent<MeshFilter>();
-					filter.sharedMesh = unityMesh;
-					var renderer = nodeObj.AddComponent<MeshRenderer>();
-					renderer.sharedMaterials = materials;
+					var meshInstance = new MeshInstance() { Name = "MeshInstance" };
+					meshInstance.Mesh = arrayMesh;
+					for (int i = 0; i < materials.Length; i++)
+					{
+						arrayMesh.SurfaceSetMaterial(i, materials[i]);
+					}
+					nodeObj.AddChild(meshInstance);
 				}
+
+				var area = new Area() { Name = "Area" };
+				nodeObj.AddChild(area);
 
 				switch (Collider)
 				{
 					case ColliderType.Box:
-						var boxCollider = nodeObj.AddComponent<BoxCollider>();
-						boxCollider.center = unityMesh.bounds.center;
-						boxCollider.size = unityMesh.bounds.size;
+						var boxCollider = new BoxShape();
+						var aabb = arrayMesh.GetAabb();
+						area.Transform = new Transform(Godot.Basis.Identity, aabb.Position);
+						boxCollider.Extents = aabb.Size;
+						var collisionShape = new CollisionShape() { 
+							Name = "CollisionShape",
+							Shape = boxCollider 
+						};
+						area.AddChild(collisionShape);
 						break;
+						/*FIXME
 					case ColliderType.Mesh:
 						var meshCollider = nodeObj.AddComponent<MeshCollider>();
 						meshCollider.sharedMesh = unityMesh;
@@ -1456,6 +1508,7 @@ namespace UnityGLTF
 						meshConvexCollider.sharedMesh = unityMesh;
 						meshConvexCollider.convex = true;
 						break;
+						*/
 				}
 			}
 			/* TODO: implement camera (probably a flag to disable for VR as well)
@@ -1466,12 +1519,12 @@ namespace UnityGLTF
 			}
 			*/
 
-			nodeObj.SetActive(true);
+			nodeObj.SetProcess(true);
 
 			progressStatus.NodeLoaded++;
 			progress?.Report(progressStatus);
 		}
-
+#if false //FIXME
 		float GetLodCoverage(List<double> lodcoverageExtras, int lodIndex)
 		{
 			if (lodcoverageExtras != null && lodIndex < lodcoverageExtras.Count)
@@ -1536,14 +1589,14 @@ namespace UnityGLTF
 			renderer.bones = bones;
 		}
 
-		private void CreateBoneWeightArray(Vector4[] joints, Vector4[] weights, ref BoneWeight[] destArr, int offset = 0)
+		private void CreateBoneWeightArray(Vector4[] joints, Vector4[] weights, ref float[] destArr)
 		{
 			// normalize weights (built-in normalize function only normalizes three components)
 			for (int i = 0; i < weights.Length; i++)
 			{
 				var weightSum = (weights[i].x + weights[i].y + weights[i].z + weights[i].w);
 
-				if (!Mathf.Approximately(weightSum, 0))
+				if (!Godot.Mathf.IsEqualApprox(weightSum, 0))
 				{
 					weights[i] /= weightSum;
 				}
@@ -1551,18 +1604,17 @@ namespace UnityGLTF
 
 			for (int i = 0; i < joints.Length; i++)
 			{
-				destArr[offset + i].boneIndex0 = (int)joints[i].x;
-				destArr[offset + i].boneIndex1 = (int)joints[i].y;
-				destArr[offset + i].boneIndex2 = (int)joints[i].z;
-				destArr[offset + i].boneIndex3 = (int)joints[i].w;
-
-				destArr[offset + i].weight0 = weights[i].x;
-				destArr[offset + i].weight1 = weights[i].y;
-				destArr[offset + i].weight2 = weights[i].z;
-				destArr[offset + i].weight3 = weights[i].w;
+				destArr[i * 8 + 0] = (int)joints[i].x;
+				destArr[i * 8 + 1] = (int)joints[i].y;
+				destArr[i * 8 + 2] = (int)joints[i].z;
+				destArr[i * 8 + 3] = (int)joints[i].w;
+				destArr[i * 8 + 4] = weights[i].x;
+				destArr[i * 8 + 5] = weights[i].y;
+				destArr[i * 8 + 6] = weights[i].z;
+				destArr[i * 8 + 7] = weights[i].w;
 			}
 		}
-
+#endif
 		/// <summary>
 		/// Allocate a generic type 2D array. The size is depending on the given parameters.
 		/// </summary>		
@@ -1591,36 +1643,33 @@ namespace UnityGLTF
 			{
 				throw new Exception("Cannot generate mesh before ConstructMeshAttributes is called!");
 			}
-			else if (_assetCache.MeshCache[meshIndex].LoadedMesh)
+			else if (_assetCache.MeshCache[meshIndex].LoadedMesh != null)
 			{
 				return;
 			}
 
-			var totalVertCount = mesh.Primitives.Aggregate((uint)0, (sum, p) => sum + p.Attributes[SemanticProperties.POSITION].Value.Count);
-			var vertOffset = 0;
+			var primitiveCount = mesh.Primitives.Count;
 			var firstPrim = mesh.Primitives[0];
 			var meshCache = _assetCache.MeshCache[meshIndex];
 			UnityMeshData unityData = new UnityMeshData()
 			{
-				Vertices = new Vector3[totalVertCount],
-				Normals = firstPrim.Attributes.ContainsKey(SemanticProperties.NORMAL) ? new Vector3[totalVertCount] : null,
-				Tangents = firstPrim.Attributes.ContainsKey(SemanticProperties.TANGENT) ? new Vector4[totalVertCount] : null,
-				Uv1 = firstPrim.Attributes.ContainsKey(SemanticProperties.TEXCOORD_0) ? new Vector2[totalVertCount] : null,
-				Uv2 = firstPrim.Attributes.ContainsKey(SemanticProperties.TEXCOORD_1) ? new Vector2[totalVertCount] : null,
-				Uv3 = firstPrim.Attributes.ContainsKey(SemanticProperties.TEXCOORD_2) ? new Vector2[totalVertCount] : null,
-				Uv4 = firstPrim.Attributes.ContainsKey(SemanticProperties.TEXCOORD_3) ? new Vector2[totalVertCount] : null,
-				Colors = firstPrim.Attributes.ContainsKey(SemanticProperties.COLOR_0) ? new Color[totalVertCount] : null,
-				BoneWeights = firstPrim.Attributes.ContainsKey(SemanticProperties.WEIGHTS_0) ? new BoneWeight[totalVertCount] : null,
+				Vertices = new Vector3[primitiveCount][],
+				Normals = firstPrim.Attributes.ContainsKey(SemanticProperties.NORMAL) ? new Vector3[primitiveCount][] : null,
+				Tangents = firstPrim.Attributes.ContainsKey(SemanticProperties.TANGENT) ? new float[primitiveCount][] : null,
+				Uv1 = firstPrim.Attributes.ContainsKey(SemanticProperties.TEXCOORD_0) ? new Vector2[primitiveCount][] : null,
+				Uv2 = firstPrim.Attributes.ContainsKey(SemanticProperties.TEXCOORD_1) ? new Vector2[primitiveCount][] : null,
+				Colors = firstPrim.Attributes.ContainsKey(SemanticProperties.COLOR_0) ? new Color[primitiveCount][] : null,
+				BoneWeights = firstPrim.Attributes.ContainsKey(SemanticProperties.WEIGHTS_0) ? new float[primitiveCount][] : null,
 
 				MorphTargetVertices = firstPrim.Targets != null && firstPrim.Targets[0].ContainsKey(SemanticProperties.POSITION) ?
-					Allocate2dArray<Vector3>((uint)firstPrim.Targets.Count, totalVertCount) : null,
+					new Vector3[firstPrim.Targets.Count][] : null,
 				MorphTargetNormals = firstPrim.Targets != null && firstPrim.Targets[0].ContainsKey(SemanticProperties.NORMAL) ?
-					Allocate2dArray<Vector3>((uint)firstPrim.Targets.Count, totalVertCount) : null,
+					new Vector3[firstPrim.Targets.Count][] : null,
 				MorphTargetTangents = firstPrim.Targets != null && firstPrim.Targets[0].ContainsKey(SemanticProperties.TANGENT) ?
-					Allocate2dArray<Vector3>((uint)firstPrim.Targets.Count, totalVertCount) : null,
+					new Vector3[firstPrim.Targets.Count][] : null,
 
-				Topology = new MeshTopology[mesh.Primitives.Count],
-				Indices = new int[mesh.Primitives.Count][]
+				Topology = new Godot.Mesh.PrimitiveType[primitiveCount],
+				Indices = new int[primitiveCount][]
 			};
 
 			for (int i = 0; i < mesh.Primitives.Count; ++i)
@@ -1631,11 +1680,11 @@ namespace UnityGLTF
 
 				if (IsMultithreaded)
 				{
-					await Task.Run(() => ConvertAttributeAccessorsToUnityTypes(primCache, unityData, vertOffset, i));
+					await Task.Run(() => ConvertAttributeAccessorsToUnityTypes(primCache, unityData, i));
 				}
 				else
 				{
-					ConvertAttributeAccessorsToUnityTypes(primCache, unityData, vertOffset, i);
+					ConvertAttributeAccessorsToUnityTypes(primCache, unityData, i);
 				}
 
 				bool shouldUseDefaultMaterial = primitive.Material == null;
@@ -1649,23 +1698,20 @@ namespace UnityGLTF
 
 				cancellationToken.ThrowIfCancellationRequested();
 
-				var vertCount = primitive.Attributes[SemanticProperties.POSITION].Value.Count;
-				vertOffset += (int)vertCount;
-
-				if (unityData.Topology[i] == MeshTopology.Triangles && primitive.Indices != null && primitive.Indices.Value != null)
+				if (unityData.Topology[i] == Godot.Mesh.PrimitiveType.Triangles && primitive.Indices != null && primitive.Indices.Value != null)
 				{
 					Statistics.TriangleCount += primitive.Indices.Value.Count / 3;
 				}
+				Statistics.VertexCount += unityData.Vertices[i].Length;
 			}
 
-			Statistics.VertexCount += vertOffset;
-			await ConstructUnityMesh(unityData, meshIndex, mesh.Name);
+			
+			await ConstructUnityMesh(unityData, meshIndex, mesh.Name, primitiveCount);
 		}
 
 		protected void ConvertAttributeAccessorsToUnityTypes(
 			MeshCacheData.PrimitiveCacheData primData,
 			UnityMeshData unityData,
-			int vertOffset,
 			int indexOffset)
 		{
 			// todo optimize: There are multiple copies being performed to turn the buffer data into mesh data. Look into reducing them
@@ -1675,69 +1721,58 @@ namespace UnityGLTF
 			var indices = meshAttributes.ContainsKey(SemanticProperties.INDICES)
 				? meshAttributes[SemanticProperties.INDICES].AccessorContent.AsUInts.ToIntArrayRaw()
 				: MeshPrimitive.GenerateIndices(vertexCount);
-			if (unityData.Topology[indexOffset] == MeshTopology.Triangles)
+			if (unityData.Topology[indexOffset] == Godot.Mesh.PrimitiveType.Triangles)
 				SchemaExtensions.FlipTriangleFaces(indices);
 			unityData.Indices[indexOffset] = indices;
 
+			/*FIXME
 			if (meshAttributes.ContainsKey(SemanticProperties.Weight[0]) && meshAttributes.ContainsKey(SemanticProperties.Joint[0]))
 			{
 				CreateBoneWeightArray(
 					meshAttributes[SemanticProperties.Joint[0]].AccessorContent.AsVec4s.ToUnityVector4Raw(),
 					meshAttributes[SemanticProperties.Weight[0]].AccessorContent.AsVec4s.ToUnityVector4Raw(),
-					ref unityData.BoneWeights,
-					vertOffset);
+					ref unityData.BoneWeights[indexOffset]);
 			}
+			*/
 
 			if (meshAttributes.ContainsKey(SemanticProperties.POSITION))
 			{
-				meshAttributes[SemanticProperties.POSITION].AccessorContent.AsVertices.ToUnityVector3Raw(unityData.Vertices, vertOffset);
+				unityData.Vertices[indexOffset] = meshAttributes[SemanticProperties.POSITION].AccessorContent.AsVertices.ToGodotVector3Raw();
 			}
 			if (meshAttributes.ContainsKey(SemanticProperties.NORMAL))
 			{
-				meshAttributes[SemanticProperties.NORMAL].AccessorContent.AsNormals.ToUnityVector3Raw(unityData.Normals, vertOffset);
+				unityData.Normals[indexOffset] = meshAttributes[SemanticProperties.NORMAL].AccessorContent.AsNormals.ToGodotVector3Raw();
 			}
 			if (meshAttributes.ContainsKey(SemanticProperties.TANGENT))
 			{
-				meshAttributes[SemanticProperties.TANGENT].AccessorContent.AsTangents.ToUnityVector4Raw(unityData.Tangents, vertOffset);
+				unityData.Tangents[indexOffset] = meshAttributes[SemanticProperties.TANGENT].AccessorContent.AsTangents.ToFloat4Raw();
 			}
 			if (meshAttributes.ContainsKey(SemanticProperties.TexCoord[0]))
 			{
-				meshAttributes[SemanticProperties.TexCoord[0]].AccessorContent.AsTexcoords.ToUnityVector2Raw(unityData.Uv1, vertOffset);
+				unityData.Uv1[indexOffset] = meshAttributes[SemanticProperties.TexCoord[0]].AccessorContent.AsTexcoords.ToGodotVector2Raw();
 			}
 			if (meshAttributes.ContainsKey(SemanticProperties.TexCoord[1]))
 			{
-				meshAttributes[SemanticProperties.TexCoord[1]].AccessorContent.AsTexcoords.ToUnityVector2Raw(unityData.Uv2, vertOffset);
-			}
-			if (meshAttributes.ContainsKey(SemanticProperties.TexCoord[2]))
-			{
-				meshAttributes[SemanticProperties.TexCoord[2]].AccessorContent.AsTexcoords.ToUnityVector2Raw(unityData.Uv3, vertOffset);
-			}
-			if (meshAttributes.ContainsKey(SemanticProperties.TexCoord[3]))
-			{
-				meshAttributes[SemanticProperties.TexCoord[3]].AccessorContent.AsTexcoords.ToUnityVector2Raw(unityData.Uv4, vertOffset);
+				unityData.Uv2[indexOffset] = meshAttributes[SemanticProperties.TexCoord[1]].AccessorContent.AsTexcoords.ToGodotVector2Raw();
 			}
 			if (meshAttributes.ContainsKey(SemanticProperties.Color[0]))
 			{
-				meshAttributes[SemanticProperties.Color[0]].AccessorContent.AsColors.ToUnityColorRaw(unityData.Colors, vertOffset);
+				unityData.Colors[indexOffset] = meshAttributes[SemanticProperties.Color[0]].AccessorContent.AsColors.ToGodotColorRaw();
 			}
-
 			var targets = primData.Targets;
-			if (targets != null)
+			if (targets != null && targets.Count > 0)
 			{
-				for (int i = 0; i < targets.Count; ++i)
+				if (targets[indexOffset].ContainsKey(SemanticProperties.POSITION))
 				{
-					if (targets[i].ContainsKey(SemanticProperties.POSITION))
-					{
-						targets[i][SemanticProperties.POSITION].AccessorContent.AsVec3s.ToUnityVector3Raw(unityData.MorphTargetVertices[i], vertOffset);
-					}
-					if (targets[i].ContainsKey(SemanticProperties.NORMAL))
-					{
-						targets[i][SemanticProperties.NORMAL].AccessorContent.AsVec3s.ToUnityVector3Raw(unityData.MorphTargetNormals[i], vertOffset);
-					}
-					if (targets[i].ContainsKey(SemanticProperties.TANGENT))
-					{
-						targets[i][SemanticProperties.TANGENT].AccessorContent.AsVec3s.ToUnityVector3Raw(unityData.MorphTargetTangents[i], vertOffset);
-					}
+					unityData.MorphTargetVertices[indexOffset] = targets[indexOffset][SemanticProperties.POSITION].AccessorContent.AsVec3s.ToGodotVector3Raw();
+				}
+				if (targets[indexOffset].ContainsKey(SemanticProperties.NORMAL))
+				{
+					unityData.MorphTargetNormals[indexOffset] = targets[indexOffset][SemanticProperties.NORMAL].AccessorContent.AsVec3s.ToGodotVector3Raw();
+				}
+				if (targets[indexOffset].ContainsKey(SemanticProperties.TANGENT))
+				{
+					unityData.MorphTargetTangents[indexOffset] = targets[indexOffset][SemanticProperties.TANGENT].AccessorContent.AsVec3s.ToGodotVector3Raw();
 				}
 			}
 		}
@@ -1825,71 +1860,56 @@ namespace UnityGLTF
 		/// <param name="primitiveIndex"></param>
 		/// <param name="unityMeshData"></param>
 		/// <returns></returns>
-		protected async Task ConstructUnityMesh(UnityMeshData unityMeshData, int meshIndex, string meshName)
+		protected async Task ConstructUnityMesh(UnityMeshData unityMeshData, int meshIndex, string meshName, int primitiveCount)
 		{
 			await YieldOnTimeoutAndThrowOnLowMemory();
-			Mesh mesh = new Mesh
+			ArrayMesh mesh = new ArrayMesh
 			{
-				name = meshName,
-#if UNITY_2017_3_OR_NEWER
-				indexFormat = unityMeshData.Vertices.Length > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16,
-#endif
+				ResourceName = meshName,
 			};
-
-			mesh.vertices = unityMeshData.Vertices;
-			await YieldOnTimeoutAndThrowOnLowMemory();
-			mesh.normals = unityMeshData.Normals;
-			await YieldOnTimeoutAndThrowOnLowMemory();
-			mesh.tangents = unityMeshData.Tangents;
-			await YieldOnTimeoutAndThrowOnLowMemory();
-			mesh.uv = unityMeshData.Uv1;
-			await YieldOnTimeoutAndThrowOnLowMemory();
-			mesh.uv2 = unityMeshData.Uv2;
-			await YieldOnTimeoutAndThrowOnLowMemory();
-			mesh.uv3 = unityMeshData.Uv3;
-			await YieldOnTimeoutAndThrowOnLowMemory();
-			mesh.uv4 = unityMeshData.Uv4;
-			await YieldOnTimeoutAndThrowOnLowMemory();
-			mesh.colors = unityMeshData.Colors;
-			await YieldOnTimeoutAndThrowOnLowMemory();
-			mesh.boneWeights = unityMeshData.BoneWeights;
-			await YieldOnTimeoutAndThrowOnLowMemory();
-
-			mesh.subMeshCount = unityMeshData.Indices.Length;
-			uint baseVertex = 0;
-			for (int i = 0; i < unityMeshData.Indices.Length; i++)
+			for (int i = 0; i < primitiveCount; i++)
 			{
-				mesh.SetIndices(unityMeshData.Indices[i], unityMeshData.Topology[i], i, false, (int)baseVertex);
-				baseVertex += _assetCache.MeshCache[meshIndex].Primitives[i].Attributes[SemanticProperties.POSITION].AccessorId.Value.Count;
-			}
-			mesh.RecalculateBounds();
-			await YieldOnTimeoutAndThrowOnLowMemory();
+				var array = new Godot.Collections.Array();
+				array.Resize((int)ArrayMesh.ArrayType.Max);
+				array[(int)ArrayMesh.ArrayType.Vertex] = unityMeshData.Vertices?[i] ?? null;
+				await YieldOnTimeoutAndThrowOnLowMemory();
+				array[(int)ArrayMesh.ArrayType.Normal] = unityMeshData.Normals?[i] ?? null;
+				await YieldOnTimeoutAndThrowOnLowMemory();
+				array[(int)ArrayMesh.ArrayType.Tangent] = unityMeshData.Tangents?[i] ?? null;
+				await YieldOnTimeoutAndThrowOnLowMemory();
+				array[(int)ArrayMesh.ArrayType.TexUv] = unityMeshData.Uv1?[i] ?? null;
+				await YieldOnTimeoutAndThrowOnLowMemory();
+				array[(int)ArrayMesh.ArrayType.TexUv2] = unityMeshData.Uv2?[i] ?? null;
+				await YieldOnTimeoutAndThrowOnLowMemory();
+				array[(int)ArrayMesh.ArrayType.Color] = unityMeshData.Colors?[i] ?? null;
+				await YieldOnTimeoutAndThrowOnLowMemory();
+				array[(int)ArrayMesh.ArrayType.Index] = unityMeshData.Indices?[i] ?? null;
+				await YieldOnTimeoutAndThrowOnLowMemory();
 
-			if (unityMeshData.MorphTargetVertices != null)
-			{
-				var firstPrim = _gltfRoot.Meshes[meshIndex].Primitives[0];
-				for (int i = 0; i < firstPrim.Targets.Count; i++)
+				array[(int)ArrayMesh.ArrayType.Bones] = unityMeshData.BoneWeights?[i] ?? null;
+				await YieldOnTimeoutAndThrowOnLowMemory();
+				Godot.Collections.Array blendShapeArray = null;
+				if (unityMeshData.MorphTargetVertices != null)
 				{
+					blendShapeArray = new Godot.Collections.Array();
+					blendShapeArray.Resize((int)ArrayMesh.ArrayType.Max);
+					mesh.BlendShapeMode = Godot.Mesh.BlendShapeMode.Normalized;
+					var firstPrim = _gltfRoot.Meshes[meshIndex].Primitives[0];
+
 					var targetName = firstPrim.TargetNames != null ? firstPrim.TargetNames[i] : $"Morphtarget{i}";
-					mesh.AddBlendShapeFrame(targetName, 100,
-						unityMeshData.MorphTargetVertices[i],
-						unityMeshData.MorphTargetNormals != null ? unityMeshData.MorphTargetNormals[i] : null,
-						unityMeshData.MorphTargetTangents != null ? unityMeshData.MorphTargetTangents[i] : null
-					);
+					mesh.AddBlendShape(targetName);
+					//FIXME : need to convert
+					blendShapeArray[(int)ArrayMesh.ArrayType.Vertex] = unityMeshData.MorphTargetVertices?[i] ?? null;
+					await YieldOnTimeoutAndThrowOnLowMemory();
+					blendShapeArray[(int)ArrayMesh.ArrayType.Normal] = unityMeshData.MorphTargetNormals?[i] ?? null;
+					await YieldOnTimeoutAndThrowOnLowMemory();
+					blendShapeArray[(int)ArrayMesh.ArrayType.Tangent] = unityMeshData.MorphTargetTangents?[i] ?? null;
+					await YieldOnTimeoutAndThrowOnLowMemory();
+
 				}
+				await YieldOnTimeoutAndThrowOnLowMemory();
+				mesh.AddSurfaceFromArrays(unityMeshData.Topology[i], array, blendShapeArray);
 			}
-			await YieldOnTimeoutAndThrowOnLowMemory();
-
-			if (unityMeshData.Normals == null && unityMeshData.Topology[0] == MeshTopology.Triangles)
-			{
-				mesh.RecalculateNormals();
-			}
-
-			if (!KeepCPUCopyOfMesh)
-			{
-				mesh.UploadMeshData(true);
-			}
-
 			_assetCache.MeshCache[meshIndex].LoadedMesh = mesh;
 		}
 
@@ -1921,16 +1941,17 @@ namespace UnityGLTF
 				}
 			}
 
-			mapper.Material.name = def.Name;
+			mapper.Material.ResourceName = def.Name;
 			mapper.AlphaMode = def.AlphaMode;
 			mapper.DoubleSided = def.DoubleSided;
+			mapper.AlphaCutoff = def.AlphaCutoff;
 
 			var mrMapper = mapper as IMetalRoughUniformMap;
 			if (def.PbrMetallicRoughness != null && mrMapper != null)
 			{
 				var pbr = def.PbrMetallicRoughness;
 
-				mrMapper.BaseColorFactor = pbr.BaseColorFactor.ToUnityColorRaw();
+				mrMapper.BaseColorFactor = pbr.BaseColorFactor.ToGodotColorRaw();
 
 				if (pbr.BaseColorTexture != null)
 				{
@@ -1938,6 +1959,8 @@ namespace UnityGLTF
 					await ConstructTexture(textureId.Value, textureId.Id, !KeepCPUCopyOfTexture, false);
 					mrMapper.BaseColorTexture = _assetCache.TextureCache[textureId.Id].Texture;
 					mrMapper.BaseColorTexCoord = pbr.BaseColorTexture.TexCoord;
+					if (mrMapper.BaseColorFactor == null)
+						mrMapper.BaseColorFactor = new Color(1, 1, 1);
 
 					var ext = GetTextureTransform(pbr.BaseColorTexture);
 					if (ext != null)
@@ -1976,7 +1999,7 @@ namespace UnityGLTF
 			{
 				var specGloss = def.Extensions[specGlossExtName] as KHR_materials_pbrSpecularGlossinessExtension;
 
-				sgMapper.DiffuseFactor = specGloss.DiffuseFactor.ToUnityColorRaw();
+				sgMapper.DiffuseFactor = specGloss.DiffuseFactor.ToGodotColorRaw();
 
 				if (specGloss.DiffuseTexture != null)
 				{
@@ -2020,7 +2043,6 @@ namespace UnityGLTF
 				TextureId textureId = def.NormalTexture.Index;
 				await ConstructTexture(textureId.Value, textureId.Id, !KeepCPUCopyOfTexture, true);
 				mapper.NormalTexture = _assetCache.TextureCache[textureId.Id].Texture;
-				mapper.NormalTexCoord = def.NormalTexture.TexCoord;
 				mapper.NormalTexScale = def.NormalTexture.Scale;
 
 				var ext = GetTextureTransform(def.NormalTexture);
@@ -2067,7 +2089,7 @@ namespace UnityGLTF
 				}
 			}
 
-			mapper.EmissiveFactor = def.EmissiveFactor.ToUnityColorRaw();
+			mapper.EmissiveFactor = def.EmissiveFactor.ToGodotColorRaw();
 
 			var vertColorMapper = mapper.Clone();
 			vertColorMapper.VertexColorsEnabled = true;
@@ -2088,7 +2110,6 @@ namespace UnityGLTF
 				_defaultLoadedMaterial = materialWrapper;
 			}
 		}
-
 
 		protected virtual int GetTextureSourceId(GLTFTexture texture)
 		{
@@ -2179,6 +2200,9 @@ namespace UnityGLTF
 				await ConstructImage(image, sourceId, markGpuOnly, isLinear);
 
 				var source = _assetCache.ImageCache[sourceId];
+				_assetCache.TextureCache[textureIndex].Texture = source;
+
+				/* Sampler not support in godot
 				FilterMode desiredFilterMode;
 				TextureWrapMode desiredWrapMode;
 
@@ -2223,6 +2247,7 @@ namespace UnityGLTF
 					}
 				}
 				else
+			
 				{
 					desiredFilterMode = FilterMode.Trilinear;
 					desiredWrapMode = TextureWrapMode.Repeat;
@@ -2236,7 +2261,7 @@ namespace UnityGLTF
 
 					if (!matchSamplerState)
 					{
-						Debug.LogWarning($"Ignoring sampler; filter mode: source {source.filterMode}, desired {desiredFilterMode}; wrap mode: source {source.wrapMode}, desired {desiredWrapMode}");
+						GD.Print($"Ignoring sampler; filter mode: source {source.filterMode}, desired {desiredFilterMode}; wrap mode: source {source.wrapMode}, desired {desiredWrapMode}");
 					}
 				}
 				else
@@ -2248,9 +2273,10 @@ namespace UnityGLTF
 					Debug.Assert(_assetCache.TextureCache[textureIndex].Texture == null, "Texture should not be reset to prevent memory leaks");
 					_assetCache.TextureCache[textureIndex].Texture = unityTexture;
 				}
+				*/
 			}
 		}
-
+#if false // FIXME
 		protected virtual void ConstructImageFromGLB(GLTFImage image, int imageCacheIndex)
 		{
 			var texture = new Texture2D(0, 0);
@@ -2269,7 +2295,7 @@ namespace UnityGLTF
 			_assetCache.ImageCache[imageCacheIndex] = texture;
 
 		}
-
+#endif
 		protected virtual BufferCacheData ConstructBufferFromGLB(int bufferIndex)
 		{
 			GLTFParser.SeekToBinaryChunk(_gltfStream.Stream, bufferIndex, _gltfStream.StartPosition);  // sets stream to correct start position
@@ -2305,7 +2331,7 @@ namespace UnityGLTF
 				await _options.AsyncCoroutineHelper.YieldOnTimeout();
 			}
 		}
-
+#if false // FIXME
 
 		/// <summary>
 		///	 Get the absolute path to a gltf uri reference.
@@ -2331,15 +2357,16 @@ namespace UnityGLTF
 			var partialPath = gltfPath.Substring(0, lastIndex);
 			return partialPath;
 		}
-
-		protected static MeshTopology GetTopology(DrawMode mode)
+#endif
+		protected static Godot.Mesh.PrimitiveType GetTopology(DrawMode mode)
 		{
 			switch (mode)
 			{
-				case DrawMode.Points: return MeshTopology.Points;
-				case DrawMode.Lines: return MeshTopology.Lines;
-				case DrawMode.LineStrip: return MeshTopology.LineStrip;
-				case DrawMode.Triangles: return MeshTopology.Triangles;
+				case DrawMode.Points: return Godot.Mesh.PrimitiveType.Points;
+				case DrawMode.Lines: return Godot.Mesh.PrimitiveType.Lines;
+				case DrawMode.LineStrip: return Godot.Mesh.PrimitiveType.LineStrip;
+				case DrawMode.Triangles: return Godot.Mesh.PrimitiveType.Triangles;
+				case DrawMode.TriangleStrip: return Godot.Mesh.PrimitiveType.TriangleStrip;
 			}
 
 			throw new Exception("Unity does not support glTF draw mode: " + mode);
@@ -2356,6 +2383,7 @@ namespace UnityGLTF
 				_assetCache = null;
 			}
 		}
+
 
 		private async Task SetupLoad(Func<Task> callback)
 		{

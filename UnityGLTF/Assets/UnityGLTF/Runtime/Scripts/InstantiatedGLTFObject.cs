@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+﻿using Godot;
 using UnityGLTF.Cache;
 
 namespace UnityGLTF
@@ -6,7 +6,7 @@ namespace UnityGLTF
     /// <summary>
     /// Instantiated GLTF Object component that gets added to the root of every GLTF game object created by a scene importer.
     /// </summary>
-    public class InstantiatedGLTFObject : MonoBehaviour
+    public class InstantiatedGLTFObject : Node
     {
         /// <summary>
         /// Ref-counted cache data for this object.
@@ -49,12 +49,11 @@ namespace UnityGLTF
         /// <returns></returns>
         public InstantiatedGLTFObject Duplicate()
         {
-            GameObject duplicatedObject = Instantiate(gameObject);
+			InstantiatedGLTFObject duplicatedObject = Duplicate();
 
-            InstantiatedGLTFObject newGltfObjectComponent = duplicatedObject.GetComponent<InstantiatedGLTFObject>();
-            newGltfObjectComponent.CachedData = CachedData;
+			duplicatedObject.CachedData = CachedData;
 
-            return newGltfObjectComponent;
+            return duplicatedObject;
         }
 
         private void OnDestroy()

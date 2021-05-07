@@ -4,13 +4,11 @@
     <AssemblyName>GLTFSerialization</AssemblyName>
     <StartupObject />
 
-    <TargetFrameworks>net35;netstandard1.3</TargetFrameworks>
-    <TargetFrameworks Condition="'$(MSBuildRuntimeType)' != 'Mono'">$(TargetFrameworks);uap10.0.10586</TargetFrameworks>
+    <TargetFrameworks>netstandard2.1</TargetFrameworks>
 
     <OutputType>Library</OutputType>
     <OutputPath>..\..\UnityGLTF\Assets\UnityGLTF\Runtime\Plugins\</OutputPath>
     <WarningLevel>4</WarningLevel>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
 
     <Authors>Khronos Group</Authors>
     <Copyright></Copyright>
@@ -33,6 +31,7 @@
     <ErrorReport>prompt</ErrorReport>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Prefer32Bit>false</Prefer32Bit>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
@@ -88,11 +87,4 @@
       </ItemGroup>
     </When>
   </Choose>
-
-  <ItemGroup>
-    <PackageReference Include="MSBuildForUnity" Version="0.8.3">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
 </Project>

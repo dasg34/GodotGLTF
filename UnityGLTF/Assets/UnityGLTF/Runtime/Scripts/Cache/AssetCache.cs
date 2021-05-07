@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using UnityEngine;
+using Godot;
 using System.IO;
 using GLTF.Schema;
 
@@ -19,7 +19,7 @@ namespace UnityGLTF.Cache
 		/// <summary>
 		/// Loaded raw texture data
 		/// </summary>
-		public Texture2D[] ImageCache { get; private set; }
+		public Texture[] ImageCache { get; private set; }
 		
 		/// <summary>
 		/// Textures to be used for assets. Textures from image cache with samplers applied
@@ -49,7 +49,7 @@ namespace UnityGLTF.Cache
 		/// <summary>
 		/// Cache of loaded node objects
 		/// </summary>
-		public GameObject[] NodeCache { get; private set; }
+		public Godot.Node[] NodeCache { get; private set; }
 
 		/// <summary>
 		/// Creates an asset cache which caches objects used in scene
@@ -57,14 +57,14 @@ namespace UnityGLTF.Cache
 		/// <param name="root">A glTF root whose assets will eventually be cached here</param>
 		public AssetCache(GLTFRoot root)
 		{
-			ImageCache = new Texture2D[root.Images?.Count ?? 0];
+			ImageCache = new Texture[root.Images?.Count ?? 0];
 			ImageStreamCache = new Stream[ImageCache.Length];
 			TextureCache = new TextureCacheData[root.Textures?.Count ?? 0];
 			MaterialCache = new MaterialCacheData[root.Materials?.Count ?? 0];
 			BufferCache = new BufferCacheData[root.Buffers?.Count ?? 0];
 			MeshCache = new MeshCacheData[root.Meshes?.Count ?? 0];
 
-			NodeCache = new GameObject[root.Nodes?.Count ?? 0];
+			NodeCache = new Godot.Node[root.Nodes?.Count ?? 0];
 			AnimationCache = new AnimationCacheData[root.Animations?.Count ?? 0];
 		}
 

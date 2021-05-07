@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using UnityEngine;
+using Godot;
 
 namespace UnityGLTF.Cache
 {
@@ -40,9 +40,9 @@ namespace UnityGLTF.Cache
 		/// <summary>
 		/// Textures from the AssetCache that might need to be cleaned up
 		/// </summary>
-		public Texture2D[] ImageCache { get; private set; }
+		public Texture[] ImageCache { get; private set; }
 
-		public RefCountedCacheData(MaterialCacheData[] materialCache, MeshCacheData[] meshCache, TextureCacheData[] textureCache, Texture2D[] imageCache)
+		public RefCountedCacheData(MaterialCacheData[] materialCache, MeshCacheData[] meshCache, TextureCacheData[] textureCache, Texture[] imageCache)
 		{
 			MaterialCache = materialCache;
 			MeshCache = meshCache;
@@ -114,7 +114,7 @@ namespace UnityGLTF.Cache
 			{
 				if (ImageCache[i] != null)
 				{
-					UnityEngine.Object.Destroy(ImageCache[i]);
+					ImageCache[i].Free();
 					ImageCache[i] = null;
 				}
 			}

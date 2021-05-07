@@ -1,6 +1,6 @@
 ﻿using GLTF.Schema;
 using System;
-using UnityEngine;
+using Godot;
 
 namespace UnityGLTF.Cache
 {
@@ -16,7 +16,7 @@ namespace UnityGLTF.Cache
 		{
 			if (Texture != null)
 			{
-				UnityEngine.Object.Destroy(Texture);
+				Texture.Free();
 				Texture = null;
 			}
 		}

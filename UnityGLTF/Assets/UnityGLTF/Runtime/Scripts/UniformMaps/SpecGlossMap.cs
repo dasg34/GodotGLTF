@@ -1,5 +1,5 @@
 ﻿using System;
-using UnityEngine;
+using Godot;
 
 namespace UnityGLTF
 {
@@ -41,7 +41,7 @@ namespace UnityGLTF
 
 		public override IUniformMap Clone()
 		{
-			var copy = new SpecGlossMap(new Material(_material));
+			var copy = new SpecGlossMap(_material);
 			base.Copy(copy);
 			return copy;
 		}

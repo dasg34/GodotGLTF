@@ -1,6 +1,7 @@
 ﻿using GLTF;
 using GLTF.Schema;
-using UnityEngine;
+using Godot;
+using System.Diagnostics;
 
 namespace UnityGLTF.Extensions
 {
@@ -39,21 +40,24 @@ namespace UnityGLTF.Extensions
 		/// <param name="position">unity translation vector</param>
 		/// <param name="rotation">unity rotation quaternion</param>
 		/// <param name="scale">unity scale vector</param>
-		public static void GetUnityTRSProperties(this Node node, out Vector3 position, out Quaternion rotation,
+		public static void GetUnityTRSProperties(this GLTF.Schema.Node node, out Vector3 position, out Quat rotation,
 			out Vector3 scale)
 		{
+			/*FIXME
 			if (!node.UseTRS)
 			{
 				Matrix4x4 unityMat = node.Matrix.ToUnityMatrix4x4Convert();
 				unityMat.GetTRSProperties(out position, out rotation, out scale);
 			}
 			else
+			*/
 			{
 				position = node.Translation.ToUnityVector3Convert();
 				rotation = node.Rotation.ToUnityQuaternionConvert();
 				scale = node.Scale.ToUnityVector3Raw();
 			}
 		}
+		/*FIXME
 
 		/// <summary>
 		/// Set a gltf node's converted translation, rotation, and scale from a unity transform
@@ -134,21 +138,27 @@ namespace UnityGLTF.Extensions
 					throw new System.Exception("column num is out of bounds");
 			}
 		}
-
+		*/
+		
 		/// <summary>
 		/// Convert gltf quaternion to a unity quaternion
 		/// </summary>
 		/// <param name="gltfQuat">gltf quaternion</param>
 		/// <returns>unity quaternion</returns>
-		public static Quaternion ToUnityQuaternionConvert(this GLTF.Math.Quaternion gltfQuat)
+		public static Quat ToUnityQuaternionConvert(this GLTF.Math.Quaternion gltfQuat)
 		{
 			Vector3 fromAxisOfRotation = new Vector3(gltfQuat.X, gltfQuat.Y, gltfQuat.Z);
 			float axisFlipScale = CoordinateSpaceConversionRequiresHandednessFlip ? -1.0f : 1.0f;
-			Vector3 toAxisOfRotation = axisFlipScale * Vector3.Scale(fromAxisOfRotation, CoordinateSpaceConversionScale.ToUnityVector3Raw());
+			Vector3 godotVector3 = CoordinateSpaceConversionScale.ToUnityVector3Raw();
+			Vector3 toAxisOfRotation = axisFlipScale * new Vector3(fromAxisOfRotation.x * godotVector3.x,
+																fromAxisOfRotation.y * godotVector3.y,
+																fromAxisOfRotation.z * godotVector3.z);
 
-			return new Quaternion(toAxisOfRotation.x, toAxisOfRotation.y, toAxisOfRotation.z, gltfQuat.W);
+
+			return new Quat(toAxisOfRotation.x, toAxisOfRotation.y, toAxisOfRotation.z, gltfQuat.W);
 		}
 
+		/*FIXME
 		/// <summary>
 		/// Convert unity quaternion to a gltf quaternion
 		/// </summary>
@@ -189,7 +199,7 @@ namespace UnityGLTF.Extensions
 			GLTF.Math.Matrix4x4 gltfMat = (convert * unityMat * convert).ToGltfMatrix4x4Raw();
 			return gltfMat;
 		}
-
+		*/
 		/// <summary>
 		/// Convert gltf Vector3 to unity Vector3
 		/// </summary>
@@ -198,10 +208,14 @@ namespace UnityGLTF.Extensions
 		public static Vector3 ToUnityVector3Convert(this GLTF.Math.Vector3 gltfVec3)
 		{
 			Vector3 coordinateSpaceConversionScale = CoordinateSpaceConversionScale.ToUnityVector3Raw();
-			Vector3 unityVec3 = Vector3.Scale(gltfVec3.ToUnityVector3Raw(), coordinateSpaceConversionScale);
+			Vector3 godotGltfVec3 = gltfVec3.ToUnityVector3Raw();
+
+			Vector3 unityVec3 = new Vector3(godotGltfVec3.x * coordinateSpaceConversionScale.x,
+											godotGltfVec3.y * coordinateSpaceConversionScale.y,
+											godotGltfVec3.z * coordinateSpaceConversionScale.z);
 			return unityVec3;
 		}
-
+		/*FIXME
 		/// <summary>
 		/// Convert unity Vector3 to gltf Vector3
 		/// </summary>
@@ -250,13 +264,13 @@ namespace UnityGLTF.Extensions
 			GLTF.Math.Matrix4x4 rawGltfMat = new GLTF.Math.Matrix4x4(c0.X, c0.Y, c0.Z, c0.W, c1.X, c1.Y, c1.Z, c1.W, c2.X, c2.Y, c2.Z, c2.W, c3.X, c3.Y, c3.Z, c3.W);
 			return rawGltfMat;
 		}
-
+		*/
 		public static Vector2 ToUnityVector2Raw(this GLTF.Math.Vector2 vec2)
 		{
 			return new Vector2(vec2.X, vec2.Y);
 		}
 
-		public static Vector2[] ToUnityVector2Raw(this GLTF.Math.Vector2[] inVecArr)
+		public static Vector2[] ToGodotVector2Raw(this GLTF.Math.Vector2[] inVecArr)
 		{
 			Vector2[] outVecArr = new Vector2[inVecArr.Length];
 			for (int i = 0; i < inVecArr.Length; ++i)
@@ -279,7 +293,7 @@ namespace UnityGLTF.Extensions
 			return new Vector3(vec3.X, vec3.Y, vec3.Z);
 		}
 
-		public static Vector3[] ToUnityVector3Raw(this GLTF.Math.Vector3[] inVecArr)
+		public static Vector3[] ToGodotVector3Raw(this GLTF.Math.Vector3[] inVecArr)
 		{
 			Vector3[] outVecArr = new Vector3[inVecArr.Length];
 			for (int i = 0; i < inVecArr.Length; ++i)
@@ -296,7 +310,7 @@ namespace UnityGLTF.Extensions
 				outArr[offset + i] = inArr[i].ToUnityVector3Raw();
 			}
 		}
-
+		/*FIXME
 		public static Vector4 ToUnityVector4Raw(this GLTF.Math.Vector4 vec4)
 		{
 			return new Vector4(vec4.X, vec4.Y, vec4.Z, vec4.W);
@@ -319,10 +333,23 @@ namespace UnityGLTF.Extensions
 				outArr[offset + i] = inArr[i].ToUnityVector4Raw();
 			}
 		}
-
-		public static UnityEngine.Color ToUnityColorRaw(this GLTF.Math.Color color)
+		*/
+		public static float[] ToFloat4Raw(this GLTF.Math.Vector4[] inArr)
 		{
-			return new UnityEngine.Color(color.R, color.G, color.B, color.A);
+			float[] outArr = new float[inArr.Length * 4];
+			for (int i = 0; i < inArr.Length; i++)
+			{
+				outArr[i * 4] = inArr[i].X;
+				outArr[i * 4 + 1] = inArr[i].Y;
+				outArr[i * 4 + 2] = inArr[i].Z;
+				outArr[i * 4 + 3] = inArr[i].W;
+			}
+			return outArr;
+		}
+
+		public static Godot.Color ToGodotColorRaw(this GLTF.Math.Color color)
+		{
+			return new Godot.Color(color.R, color.G, color.B, color.A);
 		}
 
 		public static GLTF.Math.Color ToNumericsColorRaw(this UnityEngine.Color color)
@@ -330,21 +357,21 @@ namespace UnityGLTF.Extensions
 			return new GLTF.Math.Color(color.r, color.g, color.b, color.a);
 		}
 
-		public static UnityEngine.Color[] ToUnityColorRaw(this GLTF.Math.Color[] inColorArr)
+		public static Godot.Color[] ToGodotColorRaw(this GLTF.Math.Color[] inColorArr)
 		{
-			UnityEngine.Color[] outColorArr = new UnityEngine.Color[inColorArr.Length];
+			Godot.Color[] outColorArr = new Godot.Color[inColorArr.Length];
 			for (int i = 0; i < inColorArr.Length; ++i)
 			{
-				outColorArr[i] = inColorArr[i].ToUnityColorRaw();
+				outColorArr[i] = inColorArr[i].ToGodotColorRaw();
 			}
 			return outColorArr;
 		}
 
-		public static void ToUnityColorRaw(this GLTF.Math.Color[] inArr, Color[] outArr, int offset = 0)
+		public static void ToGodotColorRaw(this GLTF.Math.Color[] inArr, Color[] outArr, int offset = 0)
 		{
 			for (int i = 0; i < inArr.Length; i++)
 			{
-				outArr[offset + i] = inArr[i].ToUnityColorRaw();
+				outArr[offset + i] = inArr[i].ToGodotColorRaw();
 			}
 		}
 
@@ -360,7 +387,7 @@ namespace UnityGLTF.Extensions
 
 			return intArr;
 		}
-
+		/*FIXME
 		public static GLTF.Math.Quaternion ToGltfQuaternionRaw(this Quaternion unityQuat)
 		{
 			return new GLTF.Math.Quaternion(unityQuat.x, unityQuat.y, unityQuat.z, unityQuat.w);
@@ -370,7 +397,7 @@ namespace UnityGLTF.Extensions
 		{
 			return new Quaternion(quaternion.X, quaternion.Y, quaternion.Z, quaternion.W);
 		}
-
+		*/
 		/// <summary>
 		/// Flips the V component of the UV (1-V) to put from glTF into Unity space
 		/// </summary>
@@ -382,7 +409,7 @@ namespace UnityGLTF.Extensions
 				attributeAccessor.AccessorContent.AsVec2s[i].Y = 1.0f - attributeAccessor.AccessorContent.AsVec2s[i].Y;
 			}
 		}
-
+		/*
 		/// <summary>
 		/// Flip the V component of the UV (1-V)
 		/// </summary>
@@ -400,7 +427,7 @@ namespace UnityGLTF.Extensions
 
 			return returnArray;
 		}
-
+		*/
 		/// <summary>
 		/// Converts vector3 to specified coordinate space
 		/// </summary>
@@ -415,6 +442,7 @@ namespace UnityGLTF.Extensions
 				attributeAccessor.AccessorContent.AsVertices[i].Z *= coordinateSpaceCoordinateScale.Z;
 			}
 		}
+		/*FIXME
 
 		/// <summary>
 		/// Converts and copies based on the specified coordinate scale
@@ -435,7 +463,7 @@ namespace UnityGLTF.Extensions
 
 			return returnArray;
 		}
-
+		*/
 		/// <summary>
 		/// Converts vector4 to specified coordinate space
 		/// </summary>
@@ -451,7 +479,7 @@ namespace UnityGLTF.Extensions
 				attributeAccessor.AccessorContent.AsVec4s[i].W *= coordinateSpaceCoordinateScale.W;
 			}
 		}
-
+		/*
 		/// <summary>
 		/// Converts and copies based on the specified coordinate scale
 		/// </summary>
@@ -472,7 +500,7 @@ namespace UnityGLTF.Extensions
 
 			return returnArray;
 		}
-
+		*/
 		/// <summary>
 		/// Rewinds the indicies into Unity coordinate space from glTF space
 		/// </summary>
@@ -481,12 +509,12 @@ namespace UnityGLTF.Extensions
 		{
 			for (int i = 0; i < indices.Length; i += 3)
 			{
-				int temp = indices[i];
-				indices[i] = indices[i + 2];
+				int temp = indices[i + 1];
+				indices[i + 1] = indices[i + 2];
 				indices[i + 2] = temp;
 			}
 		}
-
+		/*FIXME
 		public static Matrix4x4 ToUnityMatrix4x4(this GLTF.Math.Matrix4x4 matrix)
 		{
 			return new Matrix4x4()
@@ -519,5 +547,6 @@ namespace UnityGLTF.Extensions
 			}
 			return outMatrixArr;
 		}
+		*/
 	}
 }
