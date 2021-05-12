@@ -15,12 +15,10 @@ using UnityGLTF.Cache;
 using UnityGLTF.Extensions;
 using UnityGLTF.Loader;
 using Matrix4x4 = GLTF.Math.Matrix4x4;
-using Object = UnityEngine.Object;
 using System.Diagnostics;
 #if !WINDOWS_UWP
 using ThreadPriority = System.Threading.ThreadPriority;
 #endif
-using WrapMode = UnityEngine.WrapMode;
 
 namespace UnityGLTF
 {

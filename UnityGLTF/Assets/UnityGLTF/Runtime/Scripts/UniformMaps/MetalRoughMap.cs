@@ -1,7 +1,6 @@
 ﻿using System;
 using Godot;
 using AlphaMode = GLTF.Schema.AlphaMode;
-using CullMode = UnityEngine.Rendering.CullMode;
 
 namespace UnityGLTF
 {

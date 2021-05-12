@@ -352,7 +352,7 @@ namespace UnityGLTF.Extensions
 			return new Godot.Color(color.R, color.G, color.B, color.A);
 		}
 
-		public static GLTF.Math.Color ToNumericsColorRaw(this UnityEngine.Color color)
+		public static GLTF.Math.Color ToNumericsColorRaw(this Godot.Color color)
 		{
 			return new GLTF.Math.Color(color.r, color.g, color.b, color.a);
 		}

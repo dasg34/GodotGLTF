@@ -1,5 +1,4 @@
 ﻿using System;
-using UnityEngine;
 #if WINDOWS_UWP
 using Windows.System;
 #endif
@@ -16,7 +15,8 @@ namespace UnityGLTF
 		/// </summary>
 		public MemoryChecker()
 		{
-			Application.lowMemory += Application_lowMemory;
+			//FIXME
+			//Application.lowMemory += Application_lowMemory;
 
 #if WINDOWS_UWP
 			MemoryManager.AppMemoryUsageIncreased += MemoryManager_AppMemoryUsageIncreased;

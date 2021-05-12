@@ -12,7 +12,8 @@ namespace UnityGLTF.Cache
 
 	public class AnimationCacheData
 	{
-		public UnityEngine.AnimationClip LoadedAnimationClip { get; set; }
+		//FIXME
+		//public UnityEngine.AnimationClip LoadedAnimationClip { get; set; }
 		public AnimationSamplerCacheData[] Samplers { get; set; }
 
 		public AnimationCacheData(int samplerCount)

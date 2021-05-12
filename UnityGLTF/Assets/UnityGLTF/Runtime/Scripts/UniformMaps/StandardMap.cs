@@ -1,7 +1,6 @@
 ﻿using System;
 using GLTF.Schema;
 using Godot;
-using UnityEngine.Rendering;
 using Material = Godot.Material;
 using Texture = Godot.Texture;
 
