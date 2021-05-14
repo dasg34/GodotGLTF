@@ -1475,7 +1475,7 @@ namespace GodotGLTF
 					meshInstance.Mesh = arrayMesh;
 					for (int i = 0; i < materials.Length; i++)
 					{
-						arrayMesh.SurfaceSetMaterial(i, materials[i]);
+						arrayMesh.SurfaceSetMaterial(i, (Material)materials[i].Duplicate());
 					}
 					nodeObj.AddChild(meshInstance);
 				}
@@ -1886,6 +1886,41 @@ namespace GodotGLTF
 
 				array[(int)ArrayMesh.ArrayType.Bones] = unityMeshData.BoneWeights?[i] ?? null;
 				await YieldOnTimeoutAndThrowOnLowMemory();
+
+				if (unityMeshData.Topology[i] == Godot.Mesh.PrimitiveType.Triangles
+					&& (array[(int)ArrayMesh.ArrayType.Tangent] == null)
+					&& (array[(int)ArrayMesh.ArrayType.TexUv] != null)
+					&& (array[(int)ArrayMesh.ArrayType.Normal] != null))
+				{
+
+					var surfaceTool = new SurfaceTool();
+					surfaceTool.Begin(Godot.Mesh.PrimitiveType.Triangles);
+
+					if (unityMeshData.Colors?[i] != null)
+					{
+						foreach (var color in unityMeshData.Colors?[i])
+							surfaceTool.AddColor(color);
+					}
+					if (unityMeshData.Uv1?[i] != null)
+					{
+						foreach (var uv1 in unityMeshData.Uv1?[i])
+							surfaceTool.AddUv(uv1);
+					}
+					if (unityMeshData.Uv2?[i] != null)
+					{
+						foreach (var uv2 in unityMeshData.Uv2?[i])
+							surfaceTool.AddUv2(uv2);
+					}
+					foreach (var normal in unityMeshData.Normals?[i])
+						surfaceTool.AddNormal(normal);
+					foreach (var vertex in unityMeshData.Vertices?[i])
+						surfaceTool.AddVertex(vertex);
+
+					surfaceTool.GenerateTangents();
+					var arr = surfaceTool.CommitToArrays();
+					array[(int)ArrayMesh.ArrayType.Tangent] = (float[])arr[(int)Godot.Mesh.ArrayType.Tangent];
+				}
+
 				Godot.Collections.Array blendShapeArray = null;
 				if (unityMeshData.MorphTargetVertices != null)
 				{
@@ -2070,6 +2105,7 @@ namespace GodotGLTF
 				}
 			}
 
+			mapper.EmissiveFactor = def.EmissiveFactor.ToGodotColorRaw();
 			if (def.EmissiveTexture != null)
 			{
 				TextureId textureId = def.EmissiveTexture.Index;
@@ -2087,7 +2123,6 @@ namespace GodotGLTF
 				}
 			}
 
-			mapper.EmissiveFactor = def.EmissiveFactor.ToGodotColorRaw();
 
 			var vertColorMapper = mapper.Clone();
 			vertColorMapper.VertexColorsEnabled = true;
