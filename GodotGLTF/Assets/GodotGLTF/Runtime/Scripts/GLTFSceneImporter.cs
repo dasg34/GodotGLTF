@@ -484,12 +484,12 @@ namespace GodotGLTF
 				MeshPrimitive primitive = mesh.Primitives[i];
 
 				await ConstructPrimitiveAttributes(primitive, meshIndex, i);
-				/* FIXME
+
 				if (primitive.Material != null)
 				{
 					await ConstructMaterialImageBuffers(primitive.Material.Value);
 				}
-
+				/* FIXME
 				if (primitive.Targets != null)
 				{
 					// read mesh primitive targets into assetcache
@@ -1488,8 +1488,8 @@ namespace GodotGLTF
 					case ColliderType.Box:
 						var boxCollider = new BoxShape();
 						var aabb = arrayMesh.GetAabb();
-						area.Transform = new Transform(Godot.Basis.Identity, aabb.Position);
-						boxCollider.Extents = aabb.Size;
+						area.Transform = new Transform(Godot.Basis.Identity, aabb.Position + aabb.Size / 2);
+						boxCollider.Extents = aabb.Size / 2;
 						var collisionShape = new CollisionShape() { 
 							Name = "CollisionShape",
 							Shape = boxCollider 
