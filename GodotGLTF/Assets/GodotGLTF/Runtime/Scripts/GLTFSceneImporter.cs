@@ -1480,33 +1480,41 @@ namespace GodotGLTF
 					nodeObj.AddChild(meshInstance);
 				}
 
-				var area = new Area() { Name = "Area" };
-				nodeObj.AddChild(area);
+				CollisionObject collisionObject = null;
+				var collisionShape = new CollisionShape() {
+					Name = "CollisionShape",
+				};
 
 				switch (Collider)
 				{
 					case ColliderType.Box:
-						var boxCollider = new BoxShape();
 						var aabb = arrayMesh.GetAabb();
-						area.Transform = new Transform(Godot.Basis.Identity, aabb.Position + aabb.Size / 2);
-						boxCollider.Extents = aabb.Size / 2;
-						var collisionShape = new CollisionShape() { 
-							Name = "CollisionShape",
-							Shape = boxCollider 
+						collisionObject = new Area() { 
+							Name = "Area",
+							Transform = new Transform(Godot.Basis.Identity, aabb.Position + aabb.Size / 2),
 						};
-						area.AddChild(collisionShape);
+						var boxShape = new BoxShape() {
+							Extents = aabb.Size / 2,
+						};
+						collisionShape.Shape = boxShape;
 						break;
-						/*FIXME
 					case ColliderType.Mesh:
-						var meshCollider = nodeObj.AddComponent<MeshCollider>();
-						meshCollider.sharedMesh = unityMesh;
+						collisionObject = new Area() { Name = "Area" };
+						var concavePolygonShape = new ConcavePolygonShape();
+						concavePolygonShape.Data = arrayMesh.GetFaces();
+						collisionShape.Shape = concavePolygonShape;
 						break;
 					case ColliderType.MeshConvex:
-						var meshConvexCollider = nodeObj.AddComponent<MeshCollider>();
-						meshConvexCollider.sharedMesh = unityMesh;
-						meshConvexCollider.convex = true;
+						collisionObject = new StaticBody() { Name = "StaticBody" };
+						concavePolygonShape = new ConcavePolygonShape();
+						concavePolygonShape.Data = arrayMesh.GetFaces();
+						collisionShape.Shape = concavePolygonShape;
 						break;
-						*/
+				}
+				if (collisionObject != null)
+				{
+					collisionObject.AddChild(collisionShape);
+					nodeObj.AddChild(collisionObject);
 				}
 			}
 			/* TODO: implement camera (probably a flag to disable for VR as well)
