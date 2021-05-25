@@ -1491,7 +1491,6 @@ namespace GodotGLTF
 						var aabb = arrayMesh.GetAabb();
 						collisionObject = new Area() { 
 							Name = "Area",
-							Transform = new Transform(Godot.Basis.Identity, aabb.Position + aabb.Size / 2),
 						};
 						var boxShape = new BoxShape() {
 							Extents = aabb.Size / 2,
