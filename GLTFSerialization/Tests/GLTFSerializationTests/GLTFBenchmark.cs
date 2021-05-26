@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿/*FIXME
+using UnityEngine;
 using UnityEditor;
 using System.Collections;
 using GLTFJsonSerialization;
@@ -68,3 +69,4 @@ public class GLTFBenchmark : MonoBehaviour
 		}
 	}
 }
+*/
