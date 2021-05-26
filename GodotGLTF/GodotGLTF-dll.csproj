@@ -6,7 +6,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <OutputPath></OutputPath>
-    <DefineConstants>DEBUG;TRACE;UNITY_2017_1_OR_NEWER,UNITY_2017_2_OR_NEWER,UNITY_2017_3_OR_NEWER</DefineConstants>
+    <DefineConstants>DEBUG;TRACE;</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Assets\GodotGLTF\Editor\**" />
@@ -23,11 +23,12 @@
     <None Remove="Assets\GodotGLTF\Tests\**" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\GLTFSerialization\GLTFSerialization\GLTFSerialization.csproj" />
-  </ItemGroup>
-  <ItemGroup>
+    <Reference Include="GLTFSerialization, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>Libraries\GLTFSerialization.dll</HintPath>
+    </Reference>
     <Reference Include="GodotSharp">
-      <HintPath>..\..\mixed-reality-extension-godot\.mono\assemblies\Debug\GodotSharp.dll</HintPath>
+      <HintPath>Libraries\GodotSharp.dll</HintPath>
     </Reference>
   </ItemGroup>
 </Project>

@@ -7,7 +7,8 @@
     <TargetFrameworks>netstandard2.1</TargetFrameworks>
 
     <OutputType>Library</OutputType>
-    <OutputPath>..\..\UnityGLTF\Assets\UnityGLTF\Runtime\Plugins\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>..\..\GodotGLTF\Libraries\</OutputPath>
     <WarningLevel>4</WarningLevel>
 
     <Authors>Khronos Group</Authors>
@@ -77,11 +78,6 @@
       </ItemGroup>
     </When>
     <When Condition="'$(IsNETStandardTargetFramework)' == 'true'">
-      <PropertyGroup>
-        <!-- The .NET or .NETStandard can be used in the Unity project, but only one at a time.  To avoid duplicate definition errors only one is output to the project at a time. -->
-        <OutputPath>bin\$(Configuration)\</OutputPath>
-        <ExcludedUnityPlayers>UAP</ExcludedUnityPlayers>
-      </PropertyGroup>
       <ItemGroup>
         <PackageReference Include="Newtonsoft.Json" Version="11.0.1" />
       </ItemGroup>

@@ -50,3 +50,7 @@ sysinfo.txt
 /UWP/
 /WSA/
 WSATestCertificate.pfx*
+
+# exclude Libraries except GodotSharp dll
+/Libraries/*
+!/Libraries/GodotSharp.dll
