@@ -94,7 +94,7 @@ namespace GodotGLTF
 	/// <summary>
 	/// Converts gltf animation data to unity
 	/// </summary>
-	public delegate float[] ValuesConvertion(NumericArray data, int frame);
+	public delegate object ValuesConvertion(NumericArray data, int frame);
 
 	public class GLTFSceneImporter : IDisposable
 	{
@@ -938,19 +938,19 @@ namespace GodotGLTF
 				}
 			}
 		}
-#if false // FIXME
+
 		#region Animation
-		static string RelativePathFrom(Transform self, Transform root)
+		static string RelativePathFrom(Godot.Node self, Godot.Node root)
 		{
 			var path = new List<String>();
-			for (var current = self; current != null; current = current.parent)
+			for (var current = self; current != null; current = current.GetParent())
 			{
 				if (current == root)
 				{
 					return String.Join("/", path.ToArray());
 				}
 
-				path.Insert(0, current.name);
+				path.Insert(0, current.Name);
 			}
 
 			throw new Exception("no RelativePath");
@@ -1019,31 +1019,29 @@ namespace GodotGLTF
 		}
 
 		protected void SetAnimationCurve(
-			AnimationClip clip,
+			Animation clip,
 			string relativePath,
-			string[] propertyNames,
+			string propertyName,
 			NumericArray input,
 			NumericArray output,
 			InterpolationType mode,
 			Type curveType,
 			ValuesConvertion getConvertedValues)
 		{
-
-			var channelCount = propertyNames.Length;
+			var isRotation = propertyName == "rotation_degrees";
 			var frameCount = input.AsFloats.Length;
 
 			// copy all the key frame data to cache
-			Keyframe[][] keyframes = new Keyframe[channelCount][];
-			for (var ci = 0; ci < channelCount; ++ci)
-			{
-				keyframes[ci] = new Keyframe[frameCount];
-			}
-
+			int keyframe = clip.AddTrack(isRotation ? Animation.TrackType.Transform : Animation.TrackType.Value);
+			clip.TrackSetPath(keyframe, $"{relativePath}:{propertyName}");
+			clip.TrackSetInterpolationLoopWrap(keyframe, false);
 			for (var i = 0; i < frameCount; ++i)
 			{
 				var time = input.AsFloats[i];
+				if (clip.Length < time)
+					clip.Length = time;
 
-				float[] values = null;
+				object value;
 				float[] inTangents = null;
 				float[] outTangents = null;
 				if (mode == InterpolationType.CUBICSPLINE)
@@ -1052,89 +1050,42 @@ namespace GodotGLTF
 					// https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#appendix-c-spline-interpolation
 
 					var cubicIndex = i * 3;
-					inTangents = getConvertedValues(output, cubicIndex);
-					values = getConvertedValues(output, cubicIndex + 1);
-					outTangents = getConvertedValues(output, cubicIndex + 2);
+					//FIXME: CUBICSPLINE is not supported.
+					//inTangents = getConvertedValues(output, cubicIndex);
+					value = getConvertedValues(output, cubicIndex + 1);
+					//FIXME: CUBICSPLINE is not supported.
+					//outTangents = getConvertedValues(output, cubicIndex + 2);
 				}
 				else
 				{
 					// For other interpolation types, the output will only contain one value per keyframe
-					values = getConvertedValues(output, i);
+					value = getConvertedValues(output, i);
 				}
 
-				for (var ci = 0; ci < channelCount; ++ci)
+				clip.TrackInsertKey(keyframe, time, value);
+
+				switch (mode)
 				{
-					if (mode == InterpolationType.CUBICSPLINE)
-					{
-						keyframes[ci][i] = new Keyframe(time, values[ci], inTangents[ci], outTangents[ci]);
-					}
-					else
-					{
-						keyframes[ci][i] = new Keyframe(time, values[ci]);
-					}
+					case InterpolationType.CATMULLROMSPLINE:
+						clip.TrackSetInterpolationType(keyframe, Animation.InterpolationType.Cubic);
+						break;
+					case InterpolationType.LINEAR:
+						clip.TrackSetInterpolationType(keyframe, Animation.InterpolationType.Linear);
+						break;
+					case InterpolationType.STEP:
+						clip.TrackSetInterpolationType(keyframe, Animation.InterpolationType.Nearest);
+						break;
+					case InterpolationType.CUBICSPLINE:
+						//FIXME: CUBICSPLINE is not supported.
+						break;
+
+					default:
+						throw new NotImplementedException();
 				}
 			}
-
-			for (var ci = 0; ci < channelCount; ++ci)
-			{
-				// copy all key frames data to animation curve and add it to the clip
-				AnimationCurve curve = new AnimationCurve(keyframes[ci]);
-
-				// For cubic spline interpolation, the inTangents and outTangents are already explicitly defined.
-				// For the rest, set them appropriately.
-				if (mode != InterpolationType.CUBICSPLINE)
-				{
-					for (var i = 0; i < keyframes[ci].Length; i++)
-					{
-						SetTangentMode(curve, keyframes[ci], i, mode);
-					}
-				}
-				clip.SetCurve(relativePath, curveType, propertyNames[ci], curve);
-			}
 		}
 
-		private static void SetTangentMode(AnimationCurve curve, Keyframe[] keyframes, int keyframeIndex, InterpolationType interpolation)
-		{
-			var key = keyframes[keyframeIndex];
-
-			switch (interpolation)
-			{
-				case InterpolationType.CATMULLROMSPLINE:
-					key.inTangent = 0;
-					key.outTangent = 0;
-					break;
-				case InterpolationType.LINEAR:
-					key.inTangent = GetCurveKeyframeLeftLinearSlope(keyframes, keyframeIndex);
-					key.outTangent = GetCurveKeyframeLeftLinearSlope(keyframes, keyframeIndex + 1);
-					break;
-				case InterpolationType.STEP:
-					key.inTangent = float.PositiveInfinity;
-					key.outTangent = float.PositiveInfinity;
-					break;
-
-				default:
-					throw new NotImplementedException();
-			}
-
-			curve.MoveKey(keyframeIndex, key);
-		}
-
-		private static float GetCurveKeyframeLeftLinearSlope(Keyframe[] keyframes, int keyframeIndex)
-		{
-			if (keyframeIndex <= 0 || keyframeIndex >= keyframes.Length)
-			{
-				return 0;
-			}
-
-			var valueDelta = keyframes[keyframeIndex].value - keyframes[keyframeIndex - 1].value;
-			var timeDelta = keyframes[keyframeIndex].time - keyframes[keyframeIndex - 1].time;
-
-			Debug.Assert(timeDelta > 0, "Unity does not allow you to put two keyframes in with the same time, so this should never occur.");
-
-			return valueDelta / timeDelta;
-		}
-
-		protected async Task<AnimationClip> ConstructClip(Transform root, int animationId, CancellationToken cancellationToken)
+		protected async Task<Animation> ConstructClip(Spatial root, int animationId, CancellationToken cancellationToken)
 		{
 			GLTFAnimation animation = _gltfRoot.Animations[animationId];
 
@@ -1153,14 +1104,15 @@ namespace GodotGLTF
 			await BuildAnimationSamplers(animation, animationId);
 
 			// init clip
-			AnimationClip clip = new AnimationClip
+			Animation clip = new Animation
 			{
-				name = animation.Name ?? string.Format("animation:{0}", animationId)
+				ResourceName = animation.Name ?? string.Format("animation{0}", animationId)
 			};
 			_assetCache.AnimationCache[animationId].LoadedAnimationClip = clip;
 
 			// needed because Animator component is unavailable at runtime
-			clip.legacy = true;
+			//FIXME
+			//clip.legacy = true;
 
 			foreach (AnimationChannel channel in animation.Channels)
 			{
@@ -1173,51 +1125,55 @@ namespace GodotGLTF
 					// Model 08
 					continue;
 				}
-				var node = await GetNode(channel.Target.Node.Id, cancellationToken);
-				string relativePath = RelativePathFrom(node.transform, root);
+				Spatial node = await GetNode(channel.Target.Node.Id, cancellationToken) as Spatial;
+				string relativePath = RelativePathFrom(node, root);
 
 				NumericArray input = samplerCache.Input.AccessorContent,
 					output = samplerCache.Output.AccessorContent;
 
-				string[] propertyNames;
+				string propertyName;
 
 				switch (channel.Target.Path)
 				{
 					case GLTFAnimationChannelPath.translation:
-						propertyNames = new string[] { "localPosition.x", "localPosition.y", "localPosition.z" };
+						propertyName = "translation";
 
-						SetAnimationCurve(clip, relativePath, propertyNames, input, output,
+						SetAnimationCurve(clip, relativePath, propertyName, input, output,
 										  samplerCache.Interpolation, typeof(Transform),
 										  (data, frame) =>
 										  {
 											  var position = data.AsVec3s[frame].ToUnityVector3Convert();
-											  return new float[] { position.x, position.y, position.z };
+											  return position;
 										  });
 						break;
 
 					case GLTFAnimationChannelPath.rotation:
-						propertyNames = new string[] { "localRotation.x", "localRotation.y", "localRotation.z", "localRotation.w" };
+						propertyName = "rotation_degrees";
 
-						SetAnimationCurve(clip, relativePath, propertyNames, input, output,
+						SetAnimationCurve(clip, relativePath, propertyName, input, output,
 										  samplerCache.Interpolation, typeof(Transform),
 										  (data, frame) =>
 										  {
 											  var rotation = data.AsVec4s[frame];
 											  var quaternion = new GLTF.Math.Quaternion(rotation.X, rotation.Y, rotation.Z, rotation.W).ToUnityQuaternionConvert();
-											  return new float[] { quaternion.x, quaternion.y, quaternion.z, quaternion.w };
+											  var dic = new Godot.Collections.Dictionary();
+											  dic["location"] = node.Translation;
+											  dic["rotation"] = quaternion;
+											  dic["scale"] = node.Scale;
+											  return dic;
 										  });
 
 						break;
 
 					case GLTFAnimationChannelPath.scale:
-						propertyNames = new string[] { "localScale.x", "localScale.y", "localScale.z" };
+						propertyName = "scale";
 
-						SetAnimationCurve(clip, relativePath, propertyNames, input, output,
+						SetAnimationCurve(clip, relativePath, propertyName, input, output,
 										  samplerCache.Interpolation, typeof(Transform),
 										  (data, frame) =>
 										  {
 											  var scale = data.AsVec3s[frame].ToUnityVector3Raw();
-											  return new float[] { scale.x, scale.y, scale.z };
+											  return scale;
 										  });
 						break;
 
@@ -1237,16 +1193,14 @@ namespace GodotGLTF
 						break;
 
 					default:
-						Debug.LogWarning("Cannot read GLTF animation path");
+						GD.PushWarning("Cannot read GLTF animation path");
 						break;
 				} // switch target type
 			} // foreach channel
 
-			clip.EnsureQuaternionContinuity();
 			return clip;
 		}
 		#endregion
-#endif
 
 		protected virtual async Task ConstructScene(GLTFScene scene, bool showSceneObj, CancellationToken cancellationToken)
 		{
@@ -1262,25 +1216,25 @@ namespace GodotGLTF
 					Godot.Node nodeObj = await GetNode(node.Id, cancellationToken);
 					sceneObj.AddChild(nodeObj);
 				}
-				/*FIXME
 				if (_gltfRoot.Animations != null && _gltfRoot.Animations.Count > 0)
 				{
 					// create the AnimationClip that will contain animation data
-					Animation animation = sceneObj.AddComponent<Animation>();
 					for (int i = 0; i < _gltfRoot.Animations.Count; ++i)
 					{
-						AnimationClip clip = await ConstructClip(sceneObj.transform, i, cancellationToken);
+						AnimationPlayer animationPlayer = new AnimationPlayer();
+						sceneObj.AddChild(animationPlayer);
 
-						clip.wrapMode = WrapMode.Loop;
+						Animation clip = await ConstructClip(sceneObj, i, cancellationToken);
 
-						animation.AddClip(clip, clip.name);
-						if (i == 0)
-						{
-							animation.clip = clip;
-						}
+						clip.Loop = true;
+
+						animationPlayer.Name = clip.ResourceName;
+						animationPlayer.AddAnimation(clip.ResourceName, clip);
+						animationPlayer.AssignedAnimation = clip.ResourceName;
+						animationPlayer.Play();
 					}
+
 				}
-				*/
 
 				CreatedObject = sceneObj;
 				InitializeGltfTopLevelObject();
@@ -1368,8 +1322,8 @@ namespace GodotGLTF
 			Vector3 scale;
 			node.GetUnityTRSProperties(out position, out rotation, out scale);
 			
-			var basis = new Basis(new Vector3(scale.x, 0f, 0f), new Vector3(0f, scale.y, 0f), new Vector3(0f, 0f, scale.z))
-				* new Basis(rotation);
+			var basis = new Basis(rotation);
+			basis.Scale = scale;
 			nodeObj.Transform = new Transform(basis, position);
 			_assetCache.NodeCache[nodeIndex] = nodeObj;
 			if (node.Children != null)

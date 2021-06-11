@@ -147,15 +147,7 @@ namespace GodotGLTF.Extensions
 		/// <returns>unity quaternion</returns>
 		public static Quat ToUnityQuaternionConvert(this GLTF.Math.Quaternion gltfQuat)
 		{
-			Vector3 fromAxisOfRotation = new Vector3(gltfQuat.X, gltfQuat.Y, gltfQuat.Z);
-			float axisFlipScale = CoordinateSpaceConversionRequiresHandednessFlip ? -1.0f : 1.0f;
-			Vector3 godotVector3 = CoordinateSpaceConversionScale.ToUnityVector3Raw();
-			Vector3 toAxisOfRotation = axisFlipScale * new Vector3(fromAxisOfRotation.x * godotVector3.x,
-																fromAxisOfRotation.y * godotVector3.y,
-																fromAxisOfRotation.z * godotVector3.z);
-
-
-			return new Quat(toAxisOfRotation.x, toAxisOfRotation.y, toAxisOfRotation.z, gltfQuat.W);
+			return new Quat(gltfQuat.X, gltfQuat.Y, gltfQuat.Z, gltfQuat.W);
 		}
 
 		/*FIXME

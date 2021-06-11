@@ -12,8 +12,7 @@ namespace GodotGLTF.Cache
 
 	public class AnimationCacheData
 	{
-		//FIXME
-		//public UnityEngine.AnimationClip LoadedAnimationClip { get; set; }
+		public Godot.Animation LoadedAnimationClip { get; set; }
 		public AnimationSamplerCacheData[] Samplers { get; set; }
 
 		public AnimationCacheData(int samplerCount)
