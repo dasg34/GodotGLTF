@@ -8,7 +8,7 @@ The goal of this library is to support the full glTF 2.0 specification and enabl
 - Design-time import of glTF 2.0 files (Not available yet)
 - Design-time export of glTF 2.0 files (Not available yet)
 
-The library will be modularized such that it can be extended to support additional capabilities in Godot or support additional extensions to the glTF specification.  The library was designed to work with Godot 3, but is currently only tested/maintained/supported with Godot 3.2.3.
+The library will be modularized such that it can be extended to support additional capabilities in Godot or support additional extensions to the glTF specification.  The library was designed to work with Godot 3.3, but is currently only tested/maintained/supported with Godot 3.3.2.
 
 ## Current Status
 
@@ -33,8 +33,8 @@ The library will be modularized such that it can be extended to support addition
 ### [The GodotGLTF Project](https://github.com/dasg34/GodotGLTF/tree/master/GodotGLTF)
 
 - **GodotEngine Version**
-	GodotGLTF is currently only tested/maintained/supported with Godot 3.2.3.
-	You can download the 3.2.3 version [here](https://downloads.tuxfamily.org/godotengine/3.2.3/).
+	GodotGLTF is currently only tested/maintained/supported with Godot 3.3.2.
+	You can download the 3.3.2 version [here](https://downloads.tuxfamily.org/godotengine/3.3.2/).
 
 ### The Server-Side Build
 
