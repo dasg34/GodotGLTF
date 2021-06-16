@@ -43,14 +43,14 @@ namespace GodotGLTF.Extensions
 		public static void GetUnityTRSProperties(this GLTF.Schema.Node node, out Vector3 position, out Quat rotation,
 			out Vector3 scale)
 		{
-			/*FIXME
 			if (!node.UseTRS)
 			{
-				Matrix4x4 unityMat = node.Matrix.ToUnityMatrix4x4Convert();
-				unityMat.GetTRSProperties(out position, out rotation, out scale);
+				Transform transform = node.Matrix.ToGodotTransformConvert();
+				position = transform.origin;
+				rotation = transform.basis.RotationQuat();
+				scale = transform.basis.Scale;
 			}
 			else
-			*/
 			{
 				position = node.Translation.ToUnityVector3Convert();
 				rotation = node.Rotation.ToUnityQuaternionConvert();
@@ -164,21 +164,22 @@ namespace GodotGLTF.Extensions
 
 			return new GLTF.Math.Quaternion(toAxisOfRotation.x, toAxisOfRotation.y, toAxisOfRotation.z, unityQuat.w);
 		}
+		*/
 
 		/// <summary>
-		/// Convert gltf matrix to a unity matrix
+		/// Convert gltf matrix to a godot transform
 		/// </summary>
 		/// <param name="gltfMat">gltf matrix</param>
-		/// <returns>unity matrix</returns>
-		public static Matrix4x4 ToUnityMatrix4x4Convert(this GLTF.Math.Matrix4x4 gltfMat)
+		/// <returns>godot transform</returns>
+		public static Transform ToGodotTransformConvert(this GLTF.Math.Matrix4x4 gltfMat)
 		{
-			Matrix4x4 rawUnityMat = gltfMat.ToUnityMatrix4x4Raw();
-			Vector3 coordinateSpaceConversionScale = CoordinateSpaceConversionScale.ToUnityVector3Raw();
-			Matrix4x4 convert = Matrix4x4.Scale(coordinateSpaceConversionScale);
-			Matrix4x4 unityMat = convert * rawUnityMat * convert;
-			return unityMat;
+			return new Transform(new Vector3(gltfMat.M11, gltfMat.M21, gltfMat.M31),
+								new Vector3(gltfMat.M12, gltfMat.M22, gltfMat.M32),
+								new Vector3(gltfMat.M13, gltfMat.M23, gltfMat.M33),
+								new Vector3(gltfMat.M14, gltfMat.M24, gltfMat.M34));
 		}
 
+		/*FIXME
 		/// <summary>
 		/// Convert gltf matrix to a unity matrix
 		/// </summary>
