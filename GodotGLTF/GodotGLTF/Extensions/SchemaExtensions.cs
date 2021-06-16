@@ -199,13 +199,7 @@ namespace GodotGLTF.Extensions
 		/// <returns>unity vector3</returns>
 		public static Vector3 ToUnityVector3Convert(this GLTF.Math.Vector3 gltfVec3)
 		{
-			Vector3 coordinateSpaceConversionScale = CoordinateSpaceConversionScale.ToUnityVector3Raw();
-			Vector3 godotGltfVec3 = gltfVec3.ToUnityVector3Raw();
-
-			Vector3 unityVec3 = new Vector3(godotGltfVec3.x * coordinateSpaceConversionScale.x,
-											godotGltfVec3.y * coordinateSpaceConversionScale.y,
-											godotGltfVec3.z * coordinateSpaceConversionScale.z);
-			return unityVec3;
+			return gltfVec3.ToUnityVector3Raw();
 		}
 		/*FIXME
 		/// <summary>
