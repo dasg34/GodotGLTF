@@ -297,30 +297,7 @@ namespace GodotGLTF.Extensions
 				outArr[offset + i] = inArr[i].ToUnityVector3Raw();
 			}
 		}
-		/*FIXME
-		public static Vector4 ToUnityVector4Raw(this GLTF.Math.Vector4 vec4)
-		{
-			return new Vector4(vec4.X, vec4.Y, vec4.Z, vec4.W);
-		}
 
-		public static Vector4[] ToUnityVector4Raw(this GLTF.Math.Vector4[] inVecArr)
-		{
-			Vector4[] outVecArr = new Vector4[inVecArr.Length];
-			for (int i = 0; i < inVecArr.Length; ++i)
-			{
-				outVecArr[i] = inVecArr[i].ToUnityVector4Raw();
-			}
-			return outVecArr;
-		}
-
-		public static void ToUnityVector4Raw(this GLTF.Math.Vector4[] inArr, Vector4[] outArr, int offset = 0)
-		{
-			for (int i = 0; i < inArr.Length; i++)
-			{
-				outArr[offset + i] = inArr[i].ToUnityVector4Raw();
-			}
-		}
-		*/
 		public static float[] ToFloat4Raw(this GLTF.Math.Vector4[] inArr)
 		{
 			float[] outArr = new float[inArr.Length * 4];

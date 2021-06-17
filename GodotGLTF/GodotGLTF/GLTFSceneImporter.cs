@@ -45,10 +45,11 @@ namespace GodotGLTF
 		public Vector2[][] Uv2;
 		public Color[][] Colors;
 		public float[][] BoneWeights;
+		public float[][] Joints;
 
-		public Vector3[][] MorphTargetVertices;
-		public Vector3[][] MorphTargetNormals;
-		public Vector3[][] MorphTargetTangents;
+		public Vector3[,][] MorphTargetVertices;
+		public Vector3[,][] MorphTargetNormals;
+		public Vector3[,][] MorphTargetTangents;
 
 		public Godot.Mesh.PrimitiveType[] Topology;
 		public int[][] Indices;
@@ -489,13 +490,11 @@ namespace GodotGLTF
 				{
 					await ConstructMaterialImageBuffers(primitive.Material.Value);
 				}
-				/* FIXME
 				if (primitive.Targets != null)
 				{
 					// read mesh primitive targets into assetcache
 					await ConstructMeshTargets(primitive, meshIndex, i);
 				}
-				*/
 			}
 		}
 
@@ -812,7 +811,6 @@ namespace GodotGLTF
 			return error;
 		}
 
-#if false // FIXME
 		protected virtual async Task ConstructMeshTargets(MeshPrimitive primitive, int meshIndex, int primitiveIndex)
 		{
 			var newTargets = new List<Dictionary<string, AttributeAccessor>>(primitive.Targets.Count);
@@ -846,32 +844,8 @@ namespace GodotGLTF
 
 				var att = newTargets[i];
 				GLTFHelpers.BuildTargetAttributes(ref att);
-				TransformTargets(ref att);
 			}
 		}
-
-		// Flip vectors to Unity coordinate system
-		private void TransformTargets(ref Dictionary<string, AttributeAccessor> attributeAccessors)
-		{
-			if (attributeAccessors.ContainsKey(SemanticProperties.POSITION))
-			{
-				AttributeAccessor attributeAccessor = attributeAccessors[SemanticProperties.POSITION];
-				SchemaExtensions.ConvertVector3CoordinateSpace(ref attributeAccessor, SchemaExtensions.CoordinateSpaceConversionScale);
-			}
-
-			if (attributeAccessors.ContainsKey(SemanticProperties.NORMAL))
-			{
-				AttributeAccessor attributeAccessor = attributeAccessors[SemanticProperties.NORMAL];
-				SchemaExtensions.ConvertVector3CoordinateSpace(ref attributeAccessor, SchemaExtensions.CoordinateSpaceConversionScale);
-			}
-
-			if (attributeAccessors.ContainsKey(SemanticProperties.TANGENT))
-			{
-				AttributeAccessor attributeAccessor = attributeAccessors[SemanticProperties.TANGENT];
-				SchemaExtensions.ConvertVector3CoordinateSpace(ref attributeAccessor, SchemaExtensions.CoordinateSpaceConversionScale);
-			}
-		}
-#endif
 
 		protected virtual async Task ConstructPrimitiveAttributes(MeshPrimitive primitive, int meshIndex, int primitiveIndex)
 		{
@@ -1398,40 +1372,21 @@ namespace GodotGLTF
 					_defaultLoadedMaterial.UnityMaterialWithVertexColor
 				).ToArray();
 
+				var meshInstance = new MeshInstance() { Name = "MeshInstance" };
+				meshInstance.Mesh = arrayMesh;
+				for (int i = 0; i < materials.Length; i++)
+				{
+					arrayMesh.SurfaceSetMaterial(i, (Material)materials[i].Duplicate());
+				}
+				nodeObj.AddChild(meshInstance);
+
 				var morphTargets = mesh.Primitives[0].Targets;
 				var weights = node.Weights ?? mesh.Weights ??
 					(morphTargets != null ? new List<double>(morphTargets.Select(mt => 0.0)) : null);
 				if (node.Skin != null || weights != null)
 				{
-					/*FIXME
-					var renderer = nodeObj.AddComponent<SkinnedMeshRenderer>();
-					renderer.sharedMesh = unityMesh;
-					renderer.sharedMaterials = materials;
-					renderer.quality = SkinQuality.Auto;
-
-					if (node.Skin != null)
-						await SetupBones(node.Skin.Value, renderer, cancellationToken);
-
-					// morph target weights
-					if (weights != null)
-					{
-						for (int i = 0; i < weights.Count; ++i)
-						{
-							// GLTF weights are [0, 1] range but Unity weights are [0, 100] range
-							renderer.SetBlendShapeWeight(i, (float)(weights[i] * 100));
-						}
-					}
-					*/
-				}
-				else
-				{
-					var meshInstance = new MeshInstance() { Name = "MeshInstance" };
-					meshInstance.Mesh = arrayMesh;
-					for (int i = 0; i < materials.Length; i++)
-					{
-						arrayMesh.SurfaceSetMaterial(i, (Material)materials[i].Duplicate());
-					}
-					nodeObj.AddChild(meshInstance);
+					for (int i = 0; i < weights.Count; i++)
+						meshInstance.Set("blend_shapes/" + arrayMesh.GetBlendShapeName(i), weights[i]);
 				}
 
 				CollisionObject collisionObject = null;
@@ -1547,33 +1502,8 @@ namespace GodotGLTF
 			renderer.sharedMesh.bindposes = bindPoses;
 			renderer.bones = bones;
 		}
-
-		private void CreateBoneWeightArray(Vector4[] joints, Vector4[] weights, ref float[] destArr)
-		{
-			// normalize weights (built-in normalize function only normalizes three components)
-			for (int i = 0; i < weights.Length; i++)
-			{
-				var weightSum = (weights[i].x + weights[i].y + weights[i].z + weights[i].w);
-
-				if (!Godot.Mathf.IsEqualApprox(weightSum, 0))
-				{
-					weights[i] /= weightSum;
-				}
-			}
-
-			for (int i = 0; i < joints.Length; i++)
-			{
-				destArr[i * 8 + 0] = (int)joints[i].x;
-				destArr[i * 8 + 1] = (int)joints[i].y;
-				destArr[i * 8 + 2] = (int)joints[i].z;
-				destArr[i * 8 + 3] = (int)joints[i].w;
-				destArr[i * 8 + 4] = weights[i].x;
-				destArr[i * 8 + 5] = weights[i].y;
-				destArr[i * 8 + 6] = weights[i].z;
-				destArr[i * 8 + 7] = weights[i].w;
-			}
-		}
 #endif
+
 		/// <summary>
 		/// Allocate a generic type 2D array. The size is depending on the given parameters.
 		/// </summary>		
@@ -1621,11 +1551,11 @@ namespace GodotGLTF
 				BoneWeights = firstPrim.Attributes.ContainsKey(SemanticProperties.WEIGHTS_0) ? new float[primitiveCount][] : null,
 
 				MorphTargetVertices = firstPrim.Targets != null && firstPrim.Targets[0].ContainsKey(SemanticProperties.POSITION) ?
-					new Vector3[firstPrim.Targets.Count][] : null,
+					new Vector3[primitiveCount, firstPrim.Targets.Count][] : null,
 				MorphTargetNormals = firstPrim.Targets != null && firstPrim.Targets[0].ContainsKey(SemanticProperties.NORMAL) ?
-					new Vector3[firstPrim.Targets.Count][] : null,
+					new Vector3[primitiveCount, firstPrim.Targets.Count][] : null,
 				MorphTargetTangents = firstPrim.Targets != null && firstPrim.Targets[0].ContainsKey(SemanticProperties.TANGENT) ?
-					new Vector3[firstPrim.Targets.Count][] : null,
+					new Vector3[primitiveCount, firstPrim.Targets.Count][] : null,
 
 				Topology = new Godot.Mesh.PrimitiveType[primitiveCount],
 				Indices = new int[primitiveCount][]
@@ -1684,15 +1614,28 @@ namespace GodotGLTF
 				SchemaExtensions.FlipTriangleFaces(indices);
 			unityData.Indices[indexOffset] = indices;
 
-			/*FIXME
-			if (meshAttributes.ContainsKey(SemanticProperties.Weight[0]) && meshAttributes.ContainsKey(SemanticProperties.Joint[0]))
+			if (meshAttributes.ContainsKey(SemanticProperties.Weight[0]))
 			{
-				CreateBoneWeightArray(
-					meshAttributes[SemanticProperties.Joint[0]].AccessorContent.AsVec4s.ToUnityVector4Raw(),
-					meshAttributes[SemanticProperties.Weight[0]].AccessorContent.AsVec4s.ToUnityVector4Raw(),
-					ref unityData.BoneWeights[indexOffset]);
+				unityData.BoneWeights[indexOffset] = meshAttributes[SemanticProperties.Weight[0]].AccessorContent.AsTangents.ToFloat4Raw();
+				float[] weights = unityData.BoneWeights[indexOffset];
+				// normalize weights
+				for (int i = 0; i < weights.Length; i++)
+				{
+					var weightSum = (weights[i] + weights[i + 1] + weights[i + 2] + weights[i + 3]);
+
+					if (!Godot.Mathf.IsEqualApprox(weightSum, 0))
+					{
+						weights[i + 0] /= weightSum;
+						weights[i + 1] /= weightSum;
+						weights[i + 2] /= weightSum;
+						weights[i + 3] /= weightSum;
+					}
+				}
 			}
-			*/
+			if (meshAttributes.ContainsKey(SemanticProperties.Joint[0]))
+			{
+				unityData.Joints[indexOffset] = meshAttributes[SemanticProperties.Joint[0]].AccessorContent.AsTangents.ToFloat4Raw();
+			}
 
 			if (meshAttributes.ContainsKey(SemanticProperties.POSITION))
 			{
@@ -1721,17 +1664,20 @@ namespace GodotGLTF
 			var targets = primData.Targets;
 			if (targets != null && targets.Count > 0)
 			{
-				if (targets[indexOffset].ContainsKey(SemanticProperties.POSITION))
+				for (int i = 0; i < targets.Count; ++i)
 				{
-					unityData.MorphTargetVertices[indexOffset] = targets[indexOffset][SemanticProperties.POSITION].AccessorContent.AsVec3s.ToGodotVector3Raw();
-				}
-				if (targets[indexOffset].ContainsKey(SemanticProperties.NORMAL))
-				{
-					unityData.MorphTargetNormals[indexOffset] = targets[indexOffset][SemanticProperties.NORMAL].AccessorContent.AsVec3s.ToGodotVector3Raw();
-				}
-				if (targets[indexOffset].ContainsKey(SemanticProperties.TANGENT))
-				{
-					unityData.MorphTargetTangents[indexOffset] = targets[indexOffset][SemanticProperties.TANGENT].AccessorContent.AsVec3s.ToGodotVector3Raw();
+					if (targets[i].ContainsKey(SemanticProperties.POSITION))
+					{
+						unityData.MorphTargetVertices[indexOffset, i] = targets[i][SemanticProperties.POSITION].AccessorContent.AsVec3s.ToGodotVector3Raw();
+					}
+					if (targets[i].ContainsKey(SemanticProperties.NORMAL))
+					{
+						unityData.MorphTargetNormals[indexOffset, i] = targets[i][SemanticProperties.NORMAL].AccessorContent.AsVec3s.ToGodotVector3Raw();
+					}
+					if (targets[i].ContainsKey(SemanticProperties.TANGENT))
+					{
+						unityData.MorphTargetTangents[indexOffset, i] = targets[i][SemanticProperties.TANGENT].AccessorContent.AsVec3s.ToGodotVector3Raw();
+					}
 				}
 			}
 		}
@@ -1845,64 +1791,150 @@ namespace GodotGLTF
 				array[(int)ArrayMesh.ArrayType.Index] = unityMeshData.Indices?[i] ?? null;
 				await YieldOnTimeoutAndThrowOnLowMemory();
 
-				array[(int)ArrayMesh.ArrayType.Bones] = unityMeshData.BoneWeights?[i] ?? null;
+				array[(int)ArrayMesh.ArrayType.Weights] = unityMeshData.BoneWeights?[i] ?? null;
+				await YieldOnTimeoutAndThrowOnLowMemory();
+				array[(int)ArrayMesh.ArrayType.Bones] = unityMeshData.Joints?[i] ?? null;
 				await YieldOnTimeoutAndThrowOnLowMemory();
 
-				if (unityMeshData.Topology[i] == Godot.Mesh.PrimitiveType.Triangles
+				Boolean generateTangents = unityMeshData.Topology[i] == Godot.Mesh.PrimitiveType.Triangles
 					&& (array[(int)ArrayMesh.ArrayType.Tangent] == null)
 					&& (array[(int)ArrayMesh.ArrayType.TexUv] != null)
-					&& (array[(int)ArrayMesh.ArrayType.Normal] != null))
-				{
+					&& (array[(int)ArrayMesh.ArrayType.Normal] != null);
 
+				void GenerateTangents(ref Godot.Collections.Array arr, Boolean deIndex = false)
+				{
 					var surfaceTool = new SurfaceTool();
 					surfaceTool.Begin(Godot.Mesh.PrimitiveType.Triangles);
-
-					if (unityMeshData.Colors?[i] != null)
+					if (arr[(int)ArrayMesh.ArrayType.Index] != null)
 					{
-						foreach (var color in unityMeshData.Colors?[i])
-							surfaceTool.AddColor(color);
+						foreach (var index in (int[])arr[(int)ArrayMesh.ArrayType.Index])
+							surfaceTool.AddIndex(index);
 					}
-					if (unityMeshData.Uv1?[i] != null)
+					var vertexArray = (Vector3[])arr[(int)ArrayMesh.ArrayType.Vertex];
+					var hasColor = arr[(int)ArrayMesh.ArrayType.Color] != null;
+					var hasUv1 = arr[(int)ArrayMesh.ArrayType.TexUv] != null;
+					var hasUv2 = arr[(int)ArrayMesh.ArrayType.TexUv2] != null;
+					var hasTangent = arr[(int)ArrayMesh.ArrayType.Tangent] != null;
+					for (int i = 0; i < vertexArray.Length; i++)
 					{
-						foreach (var uv1 in unityMeshData.Uv1?[i])
-							surfaceTool.AddUv(uv1);
+						if (hasColor)
+							surfaceTool.AddColor(((Color[])arr[(int)ArrayMesh.ArrayType.Color])[i]);
+						if (hasUv1)
+							surfaceTool.AddUv(((Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv])[i]);
+						if (hasUv2)
+							surfaceTool.AddUv2(((Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv2])[i]);
+						surfaceTool.AddNormal(((Vector3[])arr[(int)ArrayMesh.ArrayType.Normal])[i]);
+						if (hasTangent)
+							surfaceTool.AddTangent(new Plane(((float[])arr[(int)ArrayMesh.ArrayType.Tangent])[i * 4],
+															((float[])arr[(int)ArrayMesh.ArrayType.Tangent])[i * 4 + 1],
+															((float[])arr[(int)ArrayMesh.ArrayType.Tangent])[i * 4 + 2],
+															((float[])arr[(int)ArrayMesh.ArrayType.Tangent])[i * 4 + 3]));
+						surfaceTool.AddVertex(((Vector3[])arr[(int)ArrayMesh.ArrayType.Vertex])[i]);
 					}
-					if (unityMeshData.Uv2?[i] != null)
-					{
-						foreach (var uv2 in unityMeshData.Uv2?[i])
-							surfaceTool.AddUv2(uv2);
-					}
-					foreach (var normal in unityMeshData.Normals?[i])
-						surfaceTool.AddNormal(normal);
-					foreach (var vertex in unityMeshData.Vertices?[i])
-						surfaceTool.AddVertex(vertex);
-
+					var temp = surfaceTool.CommitToArrays();
+					if (deIndex)
+						surfaceTool.Deindex();
 					surfaceTool.GenerateTangents();
-					var arr = surfaceTool.CommitToArrays();
-					array[(int)ArrayMesh.ArrayType.Tangent] = (float[])arr[(int)Godot.Mesh.ArrayType.Tangent];
+					var newArray = surfaceTool.CommitToArrays();
+					arr = newArray;
 				}
 
-				Godot.Collections.Array blendShapeArray = null;
+				if (generateTangents)
+				{
+					GenerateTangents(ref array);
+				}
+
+				Godot.Collections.Array blendShapes = null;
 				if (unityMeshData.MorphTargetVertices != null)
 				{
-					blendShapeArray = new Godot.Collections.Array();
-					blendShapeArray.Resize((int)ArrayMesh.ArrayType.Max);
-					mesh.BlendShapeMode = Godot.Mesh.BlendShapeMode.Normalized;
+					Godot.Collections.Array blendShapeArray = null;
 					var firstPrim = _gltfRoot.Meshes[meshIndex].Primitives[0];
+					blendShapes = new Godot.Collections.Array();
+					mesh.BlendShapeMode = Godot.Mesh.BlendShapeMode.Normalized;
 
-					var targetName = firstPrim.TargetNames != null ? firstPrim.TargetNames[i] : $"Morphtarget{i}";
-					mesh.AddBlendShape(targetName);
-					//FIXME : need to convert
-					blendShapeArray[(int)ArrayMesh.ArrayType.Vertex] = unityMeshData.MorphTargetVertices?[i] ?? null;
-					await YieldOnTimeoutAndThrowOnLowMemory();
-					blendShapeArray[(int)ArrayMesh.ArrayType.Normal] = unityMeshData.MorphTargetNormals?[i] ?? null;
-					await YieldOnTimeoutAndThrowOnLowMemory();
-					blendShapeArray[(int)ArrayMesh.ArrayType.Tangent] = unityMeshData.MorphTargetTangents?[i] ?? null;
-					await YieldOnTimeoutAndThrowOnLowMemory();
+					for (int j = 0; j < firstPrim.Targets.Count; j++)
+					{
+						blendShapeArray = new Godot.Collections.Array();
+						blendShapeArray.Resize((int)ArrayMesh.ArrayType.Max);
+						for (int k = 0; k < (int)ArrayMesh.ArrayType.Max; k++)
+						{
+							blendShapeArray[k] = array[k];
+						}
+						if (i == 0)
+						{
+							var targetName = firstPrim.TargetNames != null ? firstPrim.TargetNames[j] : $"Morphtarget{j}";
+							mesh.AddBlendShape(targetName);
+						}
 
+						if (unityMeshData.MorphTargetVertices?[i, j] != null)
+						{
+							Vector3[] srcArr = (Vector3[])array[(int)ArrayMesh.ArrayType.Vertex];
+							int size = srcArr.Length;
+							int maxIdx = unityMeshData.MorphTargetVertices[i, j].Length;
+							var newArray = new Vector3[size];
+							unityMeshData.MorphTargetVertices[i, j].CopyTo(newArray, 0);
+
+							for (int l = 0; l < size; l++) {
+								if (l < maxIdx) {
+									newArray[l] = newArray[l] + srcArr[l];
+								} else {
+									newArray[l] = srcArr[l];
+								}
+							}
+							blendShapeArray[(int)ArrayMesh.ArrayType.Vertex] = newArray;
+						}
+						await YieldOnTimeoutAndThrowOnLowMemory();
+						if (unityMeshData.MorphTargetNormals?[i, j] != null)
+						{
+							Vector3[] srcArr = (Vector3[])array[(int)ArrayMesh.ArrayType.Normal];
+							int size = srcArr.Length;
+							int maxIdx = unityMeshData.MorphTargetNormals[i, j].Length;
+							var newArray = new Vector3[size];
+
+							for (int l = 0; l < size; l++) {
+								if (l < maxIdx) {
+									newArray[l] = unityMeshData.MorphTargetNormals[i, j][l] + srcArr[l];
+								} else {
+									newArray[l] = srcArr[l];
+								}
+							}
+							blendShapeArray[(int)ArrayMesh.ArrayType.Normal] = newArray;
+						}
+						await YieldOnTimeoutAndThrowOnLowMemory();
+						if (unityMeshData.MorphTargetTangents?[i, j] != null)
+						{
+							float[] srcArr = (float[])array[(int)ArrayMesh.ArrayType.Tangent];
+							int size = srcArr.Length;
+							var tangentVec3 = unityMeshData.MorphTargetTangents[i, j];
+							int maxIdx = tangentVec3.Length;
+							var newArray = new float[size];
+
+							for (int l = 0; l < size / 4; l++) {
+
+								if (l < maxIdx) {
+									newArray[l * 4 + 0] = tangentVec3[l].x + srcArr[l * 4 + 0];
+									newArray[l * 4 + 1] = tangentVec3[l].y + srcArr[l * 4 + 1];
+									newArray[l * 4 + 2] = tangentVec3[l].z + srcArr[l * 4 + 2];
+								} else {
+									newArray[l * 4 + 0] = srcArr[l * 4 + 0];
+									newArray[l * 4 + 1] = srcArr[l * 4 + 1];
+									newArray[l * 4 + 2] = srcArr[l * 4 + 2];
+								}
+								newArray[l * 4 + 3] = srcArr[l * 4 + 3]; //copy flip value
+							}
+							blendShapeArray[(int)ArrayMesh.ArrayType.Tangent] = newArray;
+						}
+						await YieldOnTimeoutAndThrowOnLowMemory();
+						blendShapeArray[(int)ArrayMesh.ArrayType.Index] = null;
+						if (generateTangents)
+						{
+							GenerateTangents(ref blendShapeArray, true);
+						}
+						blendShapes.Add(blendShapeArray);
+					}
 				}
 				await YieldOnTimeoutAndThrowOnLowMemory();
-				mesh.AddSurfaceFromArrays(unityMeshData.Topology[i], array, blendShapeArray);
+				mesh.AddSurfaceFromArrays(unityMeshData.Topology[i], array, blendShapes);
 			}
 			_assetCache.MeshCache[meshIndex].LoadedMesh = mesh;
 		}
