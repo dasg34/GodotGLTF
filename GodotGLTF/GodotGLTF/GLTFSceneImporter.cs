@@ -2055,6 +2055,7 @@ namespace GodotGLTF
 				TextureId textureId = def.OcclusionTexture.Index;
 				await ConstructTexture(textureId.Value, textureId.Id, !KeepCPUCopyOfTexture, true);
 				mapper.OcclusionTexture = _assetCache.TextureCache[textureId.Id].Texture;
+				mapper.OcclusionTexCoord = def.OcclusionTexture.TexCoord;
 
 				var ext = GetTextureTransform(def.OcclusionTexture);
 				if (ext != null)

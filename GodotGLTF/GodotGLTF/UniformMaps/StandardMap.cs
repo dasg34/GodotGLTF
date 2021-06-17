@@ -11,6 +11,8 @@ namespace GodotGLTF
 		protected SpatialMaterial _material;
 		private AlphaMode _alphaMode = AlphaMode.OPAQUE;
 		private double _alphaCutoff = 0.5;
+		private int emissiveTexCoord = 0;
+		private int occlusionTexCoord = 0;
 
 		private Vector2 normalOffset = new Vector2(0, 0);
 		private Vector2 occlusionOffset = new Vector2(0, 0);
@@ -93,11 +95,17 @@ namespace GodotGLTF
 			}
 		}
 
-		// not implemented by the Standard shader
 		public virtual int OcclusionTexCoord
 		{
-			get { return 0; }
-			set { return; }
+			get => occlusionTexCoord;
+			set
+			{
+				occlusionTexCoord = value;
+				if (occlusionTexCoord == 1)
+				{
+					_material.AoOnUv2 = true;
+				}
+			}
 		}
 
 		public virtual Vector2 OcclusionXOffset
@@ -145,8 +153,15 @@ namespace GodotGLTF
 		// not implemented by the Standard shader
 		public virtual int EmissiveTexCoord
 		{
-			get { return 0; }
-			set { return; }
+			get => emissiveTexCoord;
+			set
+			{
+				emissiveTexCoord = value;
+				if (emissiveTexCoord == 1)
+				{
+					_material.EmissionOnUv2 = true;
+				}
+			}
 		}
 
 		public virtual Vector2 EmissiveXOffset

@@ -15,18 +15,6 @@ namespace GodotGLTF
 			set { return; }
 		}
 
-		public override int OcclusionTexCoord
-		{
-			get { return 0; }
-			set { return; }
-		}
-
-		public override int EmissiveTexCoord
-		{
-			get { return 0; }
-			set { return; }
-		}
-
 		public override int DiffuseTexCoord
 		{
 			get { return 0; }
