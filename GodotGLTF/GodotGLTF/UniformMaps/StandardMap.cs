@@ -21,6 +21,7 @@ namespace GodotGLTF
 		protected StandardMap(string shaderName, int MaxLOD = 1000)
 		{
 			_material = new SpatialMaterial();
+			_material.VertexColorUseAsAlbedo = true;
 			_material.ResourceName = shaderName;
 		}
 
