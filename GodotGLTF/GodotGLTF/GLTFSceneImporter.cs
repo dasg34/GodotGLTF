@@ -1152,18 +1152,47 @@ namespace GodotGLTF
 						break;
 
 					case GLTFAnimationChannelPath.weights:
-						// TODO: add support for blend shapes/morph targets
+						var primitives = channel.Target.Node.Value.Mesh.Value.Primitives;
+						var targetCount = primitives[0].Targets.Count;
+						propertyName = "weights";
 
-						// var primitives = channel.Target.Node.Value.Mesh.Value.Primitives;
-						// var targetCount = primitives[0].Targets.Count;
-						// for (int primitiveIndex = 0; primitiveIndex < primitives.Count; primitiveIndex++)
-						// {
-						// 	for (int targetIndex = 0; targetIndex < targetCount; targetIndex++)
-						// 	{
-						//
-						// 		//clip.SetCurve(primitiveObjPath, typeof(SkinnedMeshRenderer), "blendShape." + targetIndex, curves[targetIndex]);
-						// 	}
-						// }
+						var time = input.AsFloats;
+						var data = output.AsFloats;
+						if (clip.Length < time.Max())
+							clip.Length = time.Max();
+
+						for (int targetIndex = 0; targetIndex < targetCount; targetIndex++)
+						{
+							var targetName = primitives[0].TargetNames != null ? primitives[0].TargetNames[targetIndex] : $"Morphtarget{targetIndex}";
+							int keyframe = clip.AddTrack(Animation.TrackType.Value);
+							clip.TrackSetPath(keyframe, $"{relativePath}/MeshInstance:blend_shapes/{targetName}");
+							clip.TrackSetInterpolationLoopWrap(keyframe, false);
+
+							for (int timeIndex = 0, dataIndex = targetIndex; timeIndex < time.Length; dataIndex += targetCount, timeIndex++)
+							{
+								clip.TrackInsertKey(keyframe, time[timeIndex], data[dataIndex]);
+							}
+
+							switch (samplerCache.Interpolation)
+							{
+								case InterpolationType.CATMULLROMSPLINE:
+									clip.TrackSetInterpolationType(keyframe, Animation.InterpolationType.Cubic);
+									break;
+								case InterpolationType.LINEAR:
+									clip.TrackSetInterpolationType(keyframe, Animation.InterpolationType.Linear);
+									break;
+								case InterpolationType.STEP:
+									clip.TrackSetInterpolationType(keyframe, Animation.InterpolationType.Nearest);
+									break;
+								case InterpolationType.CUBICSPLINE:
+									//FIXME: CUBICSPLINE is not supported.
+									break;
+
+								default:
+									throw new NotImplementedException();
+							}
+						}
+
 						break;
 
 					default:
@@ -1386,7 +1415,9 @@ namespace GodotGLTF
 				if (node.Skin != null || weights != null)
 				{
 					for (int i = 0; i < weights.Count; i++)
+					{
 						meshInstance.Set("blend_shapes/" + arrayMesh.GetBlendShapeName(i), weights[i]);
+					}
 				}
 
 				CollisionObject collisionObject = null;
