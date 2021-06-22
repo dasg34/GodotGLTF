@@ -1407,17 +1407,33 @@ namespace GodotGLTF
 				{
 					arrayMesh.SurfaceSetMaterial(i, (Material)materials[i].Duplicate());
 				}
-				nodeObj.AddChild(meshInstance);
+				
 
 				var morphTargets = mesh.Primitives[0].Targets;
 				var weights = node.Weights ?? mesh.Weights ??
 					(morphTargets != null ? new List<double>(morphTargets.Select(mt => 0.0)) : null);
 				if (node.Skin != null || weights != null)
 				{
-					for (int i = 0; i < weights.Count; i++)
+					var skeleton = new Skeleton() { Name = "Skeleton" };
+					nodeObj.AddChild(skeleton);
+					skeleton.AddChild(meshInstance);
+					meshInstance.Skeleton = meshInstance.GetPathTo(skeleton);
+
+					if (node.Skin != null)
+						await SetupBones(node.Skin.Value, skeleton, cancellationToken);
+
+					// morph target weights
+					if (weights != null)
 					{
-						meshInstance.Set("blend_shapes/" + arrayMesh.GetBlendShapeName(i), weights[i]);
+						for (int i = 0; i < weights.Count; i++)
+						{
+							meshInstance.Set("blend_shapes/" + arrayMesh.GetBlendShapeName(i), weights[i]);
+						}
 					}
+				}
+				else
+				{
+					nodeObj.AddChild(meshInstance);
 				}
 
 				CollisionObject collisionObject = null;
@@ -1481,59 +1497,79 @@ namespace GodotGLTF
 				return 1.0f / (lodIndex + 2);
 			}
 		}
-
-		protected virtual async Task SetupBones(Skin skin, SkinnedMeshRenderer renderer, CancellationToken cancellationToken)
+#endif
+		protected virtual async Task SetupBones(GLTF.Schema.Skin skin, Skeleton skeleton, CancellationToken cancellationToken)
 		{
 			var boneCount = skin.Joints.Count;
-			Transform[] bones = new Transform[boneCount];
+			Godot.Node[] bones = new Godot.Node[boneCount];
+			var godotSkin = new Godot.Skin();
+			var skeletonParent = skeleton.GetParent();
 
 			// TODO: build bindpose arrays only once per skin, instead of once per node
 			Matrix4x4[] gltfBindPoses = null;
 			if (skin.InverseBindMatrices != null)
 			{
-				int bufferId = skin.InverseBindMatrices.Value.BufferView.Value.Buffer.Id;
+				var bufferId = skin.InverseBindMatrices.Value.BufferView.Value.Buffer;
+				var bufferData = await GetBufferData(bufferId);
 				AttributeAccessor attributeAccessor = new AttributeAccessor
 				{
 					AccessorId = skin.InverseBindMatrices,
-					Stream = _assetCache.BufferCache[bufferId].Stream,
-					Offset = _assetCache.BufferCache[bufferId].ChunkOffset
+					Stream = _assetCache.BufferCache[bufferId.Id].Stream,
+					Offset = _assetCache.BufferCache[bufferId.Id].ChunkOffset
 				};
 
 				GLTFHelpers.BuildBindPoseSamplers(ref attributeAccessor);
 				gltfBindPoses = attributeAccessor.AccessorContent.AsMatrix4x4s;
 			}
 
-			UnityEngine.Matrix4x4[] bindPoses = new UnityEngine.Matrix4x4[boneCount];
+			Transform[] bindPoses = new Transform[boneCount];
 			for (int i = 0; i < boneCount; i++)
 			{
-				var node = await GetNode(skin.Joints[i].Id, cancellationToken);
+				Spatial node = await GetNode(skin.Joints[i].Id, cancellationToken) as Spatial;
 
-				bones[i] = node.transform;
-				bindPoses[i] = gltfBindPoses != null ? gltfBindPoses[i].ToUnityMatrix4x4Convert() : UnityEngine.Matrix4x4.identity;
+				skeleton.AddBone(node.Name);
+				skeleton.SetBoneRest(i, node.Transform);
+
+				var parent = node.GetParent();
+				skeleton.SetBoneParent(i, parent == skeletonParent ? -1 : skeleton.FindBone(parent.Name));
+
+				bones[i] = node;
+				bindPoses[i] = gltfBindPoses != null ? gltfBindPoses[i].ToGodotTransformConvert() : Transform.Identity;
+node.GetParent().RemoveChild(node);
+				godotSkin.AddBind(i, bindPoses[i]);
+				godotSkin.SetBindName(i, node.Name);
 			}
 
+			Godot.Node rootBoneNode = null;
 			if (skin.Skeleton != null)
 			{
-				var rootBoneNode = await GetNode(skin.Skeleton.Id, cancellationToken);
-				renderer.rootBone = rootBoneNode.transform;
+				rootBoneNode = await GetNode(skin.Skeleton.Id, cancellationToken);
 			}
 			else
 			{
 				var rootBoneId = GLTFHelpers.FindCommonAncestor(skin.Joints);
 				if (rootBoneId != null)
 				{
-					var rootBoneNode = await GetNode(rootBoneId.Id, cancellationToken);
-					renderer.rootBone = rootBoneNode.transform;
+					rootBoneNode = await GetNode(rootBoneId.Id, cancellationToken);
 				}
 				else
 				{
 					throw new Exception("glTF skin joints do not share a root node!");
 				}
 			}
-			renderer.sharedMesh.bindposes = bindPoses;
-			renderer.bones = bones;
+			var rootBone = skeleton.FindBone(rootBoneNode.Name);
+			skeleton.SetBoneParent(rootBone, -1);
+			var meshInstance = skeleton.GetNode<MeshInstance>("MeshInstance");
+			meshInstance.Owner = skeleton;
+			meshInstance.Skin = godotSkin;
+
+			var ps = new PackedScene();
+			ps.Pack(skeleton);
+			ResourceSaver.Save("res://my_scene.tscn", ps);
+
+			//renderer.sharedMesh.bindposes = bindPoses;
+			//renderer.bones = bones;
 		}
-#endif
 
 		/// <summary>
 		/// Allocate a generic type 2D array. The size is depending on the given parameters.
@@ -1580,6 +1616,7 @@ namespace GodotGLTF
 				Uv2 = firstPrim.Attributes.ContainsKey(SemanticProperties.TEXCOORD_1) ? new Vector2[primitiveCount][] : null,
 				Colors = firstPrim.Attributes.ContainsKey(SemanticProperties.COLOR_0) ? new Color[primitiveCount][] : null,
 				BoneWeights = firstPrim.Attributes.ContainsKey(SemanticProperties.WEIGHTS_0) ? new float[primitiveCount][] : null,
+				Joints = firstPrim.Attributes.ContainsKey(SemanticProperties.JOINTS_0) ? new float[primitiveCount][] : null,
 
 				MorphTargetVertices = firstPrim.Targets != null && firstPrim.Targets[0].ContainsKey(SemanticProperties.POSITION) ?
 					new Vector3[primitiveCount, firstPrim.Targets.Count][] : null,
@@ -1647,10 +1684,10 @@ namespace GodotGLTF
 
 			if (meshAttributes.ContainsKey(SemanticProperties.Weight[0]))
 			{
-				unityData.BoneWeights[indexOffset] = meshAttributes[SemanticProperties.Weight[0]].AccessorContent.AsTangents.ToFloat4Raw();
+				unityData.BoneWeights[indexOffset] = meshAttributes[SemanticProperties.Weight[0]].AccessorContent.AsVec4s.ToFloat4Raw();
 				float[] weights = unityData.BoneWeights[indexOffset];
 				// normalize weights
-				for (int i = 0; i < weights.Length; i++)
+				for (int i = 0; i < weights.Length; i += 4)
 				{
 					var weightSum = (weights[i] + weights[i + 1] + weights[i + 2] + weights[i + 3]);
 
@@ -1665,7 +1702,7 @@ namespace GodotGLTF
 			}
 			if (meshAttributes.ContainsKey(SemanticProperties.Joint[0]))
 			{
-				unityData.Joints[indexOffset] = meshAttributes[SemanticProperties.Joint[0]].AccessorContent.AsTangents.ToFloat4Raw();
+				unityData.Joints[indexOffset] = meshAttributes[SemanticProperties.Joint[0]].AccessorContent.AsVec4s.ToFloat4Raw();
 			}
 
 			if (meshAttributes.ContainsKey(SemanticProperties.POSITION))

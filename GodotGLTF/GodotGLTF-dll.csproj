@@ -23,12 +23,11 @@
     <None Remove="Assets\GodotGLTF\Tests\**" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="GLTFSerialization, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>Libraries\GLTFSerialization.dll</HintPath>
-    </Reference>
     <Reference Include="GodotSharp">
       <HintPath>Libraries\GodotSharp.dll</HintPath>
     </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GLTFSerialization\GLTFSerialization\GLTFSerialization.csproj" />
   </ItemGroup>
 </Project>

@@ -311,6 +311,16 @@ namespace GodotGLTF.Extensions
 			return outArr;
 		}
 
+		public static Plane[] ToPlane4Raw(this GLTF.Math.Vector4[] inArr)
+		{
+			Plane[] outArr = new Plane[inArr.Length * 4];
+			for (int i = 0; i < inArr.Length; i++)
+			{
+				outArr[i] = new Plane(inArr[i].X, inArr[i].Y, inArr[i].Z, inArr[i].W);
+			}
+			return outArr;
+		}
+
 		public static Godot.Color ToGodotColorRaw(this GLTF.Math.Color color)
 		{
 			return new Godot.Color(color.R, color.G, color.B, color.A);
