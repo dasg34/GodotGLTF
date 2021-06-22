@@ -95,7 +95,7 @@ namespace GodotGLTF
 	/// <summary>
 	/// Converts gltf animation data to unity
 	/// </summary>
-	public delegate object ValuesConvertion(NumericArray data, int frame);
+	public delegate void ValuesConvertion(NumericArray data, int frame, Godot.Collections.Dictionary value);
 
 	public class GLTFSceneImporter : IDisposable
 	{
@@ -994,28 +994,37 @@ namespace GodotGLTF
 
 		protected void SetAnimationCurve(
 			Animation clip,
-			string relativePath,
-			string propertyName,
+			int track,
 			NumericArray input,
 			NumericArray output,
 			InterpolationType mode,
-			Type curveType,
+			Spatial node,
 			ValuesConvertion getConvertedValues)
 		{
-			var isRotation = propertyName == "rotation_degrees";
 			var frameCount = input.AsFloats.Length;
 
 			// copy all the key frame data to cache
-			int keyframe = clip.AddTrack(isRotation ? Animation.TrackType.Transform : Animation.TrackType.Value);
-			clip.TrackSetPath(keyframe, $"{relativePath}:{propertyName}");
-			clip.TrackSetInterpolationLoopWrap(keyframe, false);
 			for (var i = 0; i < frameCount; ++i)
 			{
 				var time = input.AsFloats[i];
 				if (clip.Length < time)
 					clip.Length = time;
 
-				object value;
+				Godot.Collections.Dictionary value = null;
+				var keyIdx = clip.TrackFindKey(track, time, true);
+				if (keyIdx != -1)
+				{
+					value = clip.TrackGetKeyValue(track, keyIdx) as Godot.Collections.Dictionary;
+					clip.TrackRemoveKey(track, keyIdx);
+				}
+				if (value == null)
+				{
+					value = new Godot.Collections.Dictionary();
+					value["scale"] = node.Scale;
+					value["rotation"] = node.Transform.basis.Quat();
+					value["location"] = node.Transform.origin;
+				}
+
 				float[] inTangents = null;
 				float[] outTangents = null;
 				if (mode == InterpolationType.CUBICSPLINE)
@@ -1026,36 +1035,17 @@ namespace GodotGLTF
 					var cubicIndex = i * 3;
 					//FIXME: CUBICSPLINE is not supported.
 					//inTangents = getConvertedValues(output, cubicIndex);
-					value = getConvertedValues(output, cubicIndex + 1);
+					getConvertedValues(output, cubicIndex + 1, value);
 					//FIXME: CUBICSPLINE is not supported.
 					//outTangents = getConvertedValues(output, cubicIndex + 2);
 				}
 				else
 				{
 					// For other interpolation types, the output will only contain one value per keyframe
-					value = getConvertedValues(output, i);
+					getConvertedValues(output, i, value);
 				}
 
-				clip.TrackInsertKey(keyframe, time, value);
-
-				switch (mode)
-				{
-					case InterpolationType.CATMULLROMSPLINE:
-						clip.TrackSetInterpolationType(keyframe, Animation.InterpolationType.Cubic);
-						break;
-					case InterpolationType.LINEAR:
-						clip.TrackSetInterpolationType(keyframe, Animation.InterpolationType.Linear);
-						break;
-					case InterpolationType.STEP:
-						clip.TrackSetInterpolationType(keyframe, Animation.InterpolationType.Nearest);
-						break;
-					case InterpolationType.CUBICSPLINE:
-						//FIXME: CUBICSPLINE is not supported.
-						break;
-
-					default:
-						throw new NotImplementedException();
-				}
+				clip.TrackInsertKey(track, time, value);
 			}
 		}
 
@@ -1080,7 +1070,8 @@ namespace GodotGLTF
 			// init clip
 			Animation clip = new Animation
 			{
-				ResourceName = animation.Name ?? string.Format("animation{0}", animationId)
+				ResourceName = animation.Name ?? string.Format("animation{0}", animationId),
+				Length = 0
 			};
 			_assetCache.AnimationCache[animationId].LoadedAnimationClip = clip;
 
@@ -1100,54 +1091,80 @@ namespace GodotGLTF
 					continue;
 				}
 				Spatial node = await GetNode(channel.Target.Node.Id, cancellationToken) as Spatial;
-				string relativePath = RelativePathFrom(node, root);
+				string propertyName;
+				string relativePath;
+				if (node.IsInGroup("bones"))
+				{
+					var skeleton = node.GetMeta("skeleton") as Skeleton;
+					relativePath = RelativePathFrom(skeleton, root);
+					propertyName = node.Name;
+				}
+				else
+				{
+					relativePath = RelativePathFrom(node, root);
+					propertyName = "";
+				}
 
 				NumericArray input = samplerCache.Input.AccessorContent,
 					output = samplerCache.Output.AccessorContent;
+				var track = clip.FindTrack($"{relativePath}:{propertyName}");
+				if (track == -1)
+				{
+					track = clip.AddTrack(Animation.TrackType.Transform);
+					clip.TrackSetPath(track, $"{relativePath}:{propertyName}");
+					clip.TrackSetInterpolationLoopWrap(track, false);
+				}
 
-				string propertyName;
+				switch (samplerCache.Interpolation)
+				{
+					case InterpolationType.CATMULLROMSPLINE:
+						clip.TrackSetInterpolationType(track, Animation.InterpolationType.Cubic);
+						break;
+					case InterpolationType.LINEAR:
+						clip.TrackSetInterpolationType(track, Animation.InterpolationType.Linear);
+						break;
+					case InterpolationType.STEP:
+						clip.TrackSetInterpolationType(track, Animation.InterpolationType.Nearest);
+						break;
+					case InterpolationType.CUBICSPLINE:
+						//FIXME: CUBICSPLINE is not supported.
+						break;
+
+					default:
+						throw new NotImplementedException();
+				}
 
 				switch (channel.Target.Path)
 				{
 					case GLTFAnimationChannelPath.translation:
-						propertyName = "translation";
-
-						SetAnimationCurve(clip, relativePath, propertyName, input, output,
-										  samplerCache.Interpolation, typeof(Transform),
-										  (data, frame) =>
+						SetAnimationCurve(clip, track, input, output,
+										  samplerCache.Interpolation, node,
+										  (data, frame, value) =>
 										  {
 											  var position = data.AsVec3s[frame].ToUnityVector3Convert();
-											  return position;
+											  value["location"] = position;
 										  });
 						break;
 
 					case GLTFAnimationChannelPath.rotation:
-						propertyName = "rotation_degrees";
-
-						SetAnimationCurve(clip, relativePath, propertyName, input, output,
-										  samplerCache.Interpolation, typeof(Transform),
-										  (data, frame) =>
+						SetAnimationCurve(clip, track, input, output,
+										  samplerCache.Interpolation, node,
+										  (data, frame, value) =>
 										  {
 											  var rotation = data.AsVec4s[frame];
 											  var quaternion = new GLTF.Math.Quaternion(rotation.X, rotation.Y, rotation.Z, rotation.W).ToUnityQuaternionConvert();
-											  var dic = new Godot.Collections.Dictionary();
-											  dic["location"] = node.Translation;
-											  dic["rotation"] = quaternion;
-											  dic["scale"] = node.Scale;
-											  return dic;
+											  value["rotation"] = quaternion.Normalized();
 										  });
 
 						break;
 
 					case GLTFAnimationChannelPath.scale:
-						propertyName = "scale";
-
-						SetAnimationCurve(clip, relativePath, propertyName, input, output,
-										  samplerCache.Interpolation, typeof(Transform),
-										  (data, frame) =>
+						SetAnimationCurve(clip, track, input, output,
+										  samplerCache.Interpolation, node,
+										  (data, frame, value) =>
 										  {
 											  var scale = data.AsVec3s[frame].ToUnityVector3Raw();
-											  return scale;
+											  value["scale"] = scale;
 										  });
 						break;
 
@@ -1201,6 +1218,33 @@ namespace GodotGLTF
 				} // switch target type
 			} // foreach channel
 
+			var trackEnd = clip.GetTrackCount();
+			for (int track = 0; track < trackEnd; track++)
+			{
+				if (clip.TrackGetType(track) != Animation.TrackType.Transform
+					|| !clip.TrackGetPath(track).ToString().Contains("Skeleton"))
+					continue;
+				var skeleton = root.GetNode<Skeleton>(clip.TrackGetPath(track));
+				if (skeleton == null)
+					continue;
+
+				var keyEnd = clip.TrackGetKeyCount(track);
+				var boneName = clip.TrackGetPath(track).GetSubname(0);
+				for (int key = 0; key < keyEnd; key++)
+				{
+					var trasformDictionary = clip.TrackGetKeyValue(track, key) as Godot.Collections.Dictionary;
+					Basis basis = new Basis((Quat)trasformDictionary["rotation"]);
+					basis.Scale = (Vector3)trasformDictionary["scale"];
+					Transform xform = new Transform(basis, (Vector3)trasformDictionary["location"]);
+
+					var bone = skeleton.FindBone(boneName);
+					xform = skeleton.GetBoneRest(bone).AffineInverse() * xform;
+					var time = clip.TrackGetKeyTime(track, key);
+					clip.TrackRemoveKey(track, key);
+					clip.TransformTrackInsertKey(track, time, xform.origin, xform.basis.RotationQuat().Normalized(), xform.basis.Scale);
+				}
+			}
+
 			return clip;
 		}
 		#endregion
@@ -1217,7 +1261,11 @@ namespace GodotGLTF
 				{
 					NodeId node = scene.Nodes[i];
 					Godot.Node nodeObj = await GetNode(node.Id, cancellationToken);
+					if (nodeObj.IsInGroup("bones"))
+						continue;
+
 					sceneObj.AddChild(nodeObj);
+					nodeObj.Owner = sceneObj;
 				}
 				if (_gltfRoot.Animations != null && _gltfRoot.Animations.Count > 0)
 				{
@@ -1226,6 +1274,7 @@ namespace GodotGLTF
 					{
 						AnimationPlayer animationPlayer = new AnimationPlayer();
 						sceneObj.AddChild(animationPlayer);
+						animationPlayer.Owner = sceneObj;
 
 						Animation clip = await ConstructClip(sceneObj, i, cancellationToken);
 
@@ -1234,7 +1283,8 @@ namespace GodotGLTF
 						animationPlayer.Name = clip.ResourceName;
 						animationPlayer.AddAnimation(clip.ResourceName, clip);
 						animationPlayer.AssignedAnimation = clip.ResourceName;
-						animationPlayer.Play();
+						if (i == 0)
+							animationPlayer.Play();
 					}
 
 				}
@@ -1329,12 +1379,14 @@ namespace GodotGLTF
 			basis.Scale = scale;
 			nodeObj.Transform = new Transform(basis, position);
 			_assetCache.NodeCache[nodeIndex] = nodeObj;
+
 			if (node.Children != null)
 			{
 				foreach (var child in node.Children)
 				{
 					Godot.Node childObj = await GetNode(child.Id, cancellationToken);
-					nodeObj.AddChild(childObj);
+					if (childObj.GetParent() == null)
+						nodeObj.AddChild(childObj);
 				}
 			}
 			
@@ -1407,17 +1459,29 @@ namespace GodotGLTF
 				{
 					arrayMesh.SurfaceSetMaterial(i, (Material)materials[i].Duplicate());
 				}
-				nodeObj.AddChild(meshInstance);
 
 				var morphTargets = mesh.Primitives[0].Targets;
 				var weights = node.Weights ?? mesh.Weights ??
 					(morphTargets != null ? new List<double>(morphTargets.Select(mt => 0.0)) : null);
 				if (node.Skin != null || weights != null)
 				{
-					for (int i = 0; i < weights.Count; i++)
+					if (node.Skin != null)
+						await SetupBones(node.Skin.Value, nodeObj, meshInstance, cancellationToken);
+					else
+						nodeObj.AddChild(meshInstance);
+
+					// morph target weights
+					if (weights != null)
 					{
-						meshInstance.Set("blend_shapes/" + arrayMesh.GetBlendShapeName(i), weights[i]);
+						for (int i = 0; i < weights.Count; i++)
+						{
+							meshInstance.Set("blend_shapes/" + arrayMesh.GetBlendShapeName(i), weights[i]);
+						}
 					}
+				}
+				else
+				{
+					nodeObj.AddChild(meshInstance);
 				}
 
 				CollisionObject collisionObject = null;
@@ -1481,59 +1545,81 @@ namespace GodotGLTF
 				return 1.0f / (lodIndex + 2);
 			}
 		}
-
-		protected virtual async Task SetupBones(Skin skin, SkinnedMeshRenderer renderer, CancellationToken cancellationToken)
+#endif
+		protected virtual async Task SetupBones(GLTF.Schema.Skin skin, Spatial nodeObj, MeshInstance meshInstance, CancellationToken cancellationToken)
 		{
 			var boneCount = skin.Joints.Count;
-			Transform[] bones = new Transform[boneCount];
+			Godot.Node[] bones = new Godot.Node[boneCount];
+			var godotSkin = new Godot.Skin() { ResourceName = "Skin" };
+			var skeleton = new Skeleton() { Name = "Skeleton" };
 
 			// TODO: build bindpose arrays only once per skin, instead of once per node
 			Matrix4x4[] gltfBindPoses = null;
 			if (skin.InverseBindMatrices != null)
 			{
-				int bufferId = skin.InverseBindMatrices.Value.BufferView.Value.Buffer.Id;
+				var bufferId = skin.InverseBindMatrices.Value.BufferView.Value.Buffer;
+				var bufferData = await GetBufferData(bufferId);
 				AttributeAccessor attributeAccessor = new AttributeAccessor
 				{
 					AccessorId = skin.InverseBindMatrices,
-					Stream = _assetCache.BufferCache[bufferId].Stream,
-					Offset = _assetCache.BufferCache[bufferId].ChunkOffset
+					Stream = _assetCache.BufferCache[bufferId.Id].Stream,
+					Offset = _assetCache.BufferCache[bufferId.Id].ChunkOffset
 				};
 
 				GLTFHelpers.BuildBindPoseSamplers(ref attributeAccessor);
 				gltfBindPoses = attributeAccessor.AccessorContent.AsMatrix4x4s;
 			}
 
-			UnityEngine.Matrix4x4[] bindPoses = new UnityEngine.Matrix4x4[boneCount];
+			Transform[] bindPoses = new Transform[boneCount];
 			for (int i = 0; i < boneCount; i++)
 			{
-				var node = await GetNode(skin.Joints[i].Id, cancellationToken);
+				Spatial node = await GetNode(skin.Joints[i].Id, cancellationToken) as Spatial;
+				node.AddToGroup("bones");
+				node.SetMeta("skeleton", skeleton);
+				skeleton.AddBone(node.Name);
+				skeleton.SetBoneRest(i, node.Transform);
 
-				bones[i] = node.transform;
-				bindPoses[i] = gltfBindPoses != null ? gltfBindPoses[i].ToUnityMatrix4x4Convert() : UnityEngine.Matrix4x4.identity;
+				var parent = node.GetParent();
+				if (parent != null && parent != nodeObj)
+				{
+					skeleton.SetBoneParent(i, skeleton.FindBone(parent.Name));
+					parent.RemoveChild(node);
+				}
+
+				bones[i] = node;
+				bindPoses[i] = gltfBindPoses != null ? gltfBindPoses[i].ToGodotTransformConvert() : Transform.Identity;
+
+				godotSkin.AddBind(i, bindPoses[i]);
+				godotSkin.SetBindName(i, node.Name);
 			}
 
+			Godot.Node rootBoneNode = null;
 			if (skin.Skeleton != null)
 			{
-				var rootBoneNode = await GetNode(skin.Skeleton.Id, cancellationToken);
-				renderer.rootBone = rootBoneNode.transform;
+				rootBoneNode = await GetNode(skin.Skeleton.Id, cancellationToken);
 			}
 			else
 			{
 				var rootBoneId = GLTFHelpers.FindCommonAncestor(skin.Joints);
 				if (rootBoneId != null)
 				{
-					var rootBoneNode = await GetNode(rootBoneId.Id, cancellationToken);
-					renderer.rootBone = rootBoneNode.transform;
+					rootBoneNode = await GetNode(rootBoneId.Id, cancellationToken);
 				}
 				else
 				{
 					throw new Exception("glTF skin joints do not share a root node!");
 				}
 			}
-			renderer.sharedMesh.bindposes = bindPoses;
-			renderer.bones = bones;
+			if (bones.Contains(rootBoneNode))
+				rootBoneNode = rootBoneNode.GetParent();
+
+			rootBoneNode?.AddChild(nodeObj);
+			nodeObj.AddChild(skeleton);
+			skeleton.AddChild(meshInstance);
+			meshInstance.Owner = skeleton;
+			meshInstance.Skin = godotSkin;
+			meshInstance.Skeleton = meshInstance.GetPathTo(skeleton);
 		}
-#endif
 
 		/// <summary>
 		/// Allocate a generic type 2D array. The size is depending on the given parameters.
@@ -1580,6 +1666,7 @@ namespace GodotGLTF
 				Uv2 = firstPrim.Attributes.ContainsKey(SemanticProperties.TEXCOORD_1) ? new Vector2[primitiveCount][] : null,
 				Colors = firstPrim.Attributes.ContainsKey(SemanticProperties.COLOR_0) ? new Color[primitiveCount][] : null,
 				BoneWeights = firstPrim.Attributes.ContainsKey(SemanticProperties.WEIGHTS_0) ? new float[primitiveCount][] : null,
+				Joints = firstPrim.Attributes.ContainsKey(SemanticProperties.JOINTS_0) ? new float[primitiveCount][] : null,
 
 				MorphTargetVertices = firstPrim.Targets != null && firstPrim.Targets[0].ContainsKey(SemanticProperties.POSITION) ?
 					new Vector3[primitiveCount, firstPrim.Targets.Count][] : null,
@@ -1647,10 +1734,10 @@ namespace GodotGLTF
 
 			if (meshAttributes.ContainsKey(SemanticProperties.Weight[0]))
 			{
-				unityData.BoneWeights[indexOffset] = meshAttributes[SemanticProperties.Weight[0]].AccessorContent.AsTangents.ToFloat4Raw();
+				unityData.BoneWeights[indexOffset] = meshAttributes[SemanticProperties.Weight[0]].AccessorContent.AsVec4s.ToFloat4Raw();
 				float[] weights = unityData.BoneWeights[indexOffset];
 				// normalize weights
-				for (int i = 0; i < weights.Length; i++)
+				for (int i = 0; i < weights.Length; i += 4)
 				{
 					var weightSum = (weights[i] + weights[i + 1] + weights[i + 2] + weights[i + 3]);
 
@@ -1665,7 +1752,7 @@ namespace GodotGLTF
 			}
 			if (meshAttributes.ContainsKey(SemanticProperties.Joint[0]))
 			{
-				unityData.Joints[indexOffset] = meshAttributes[SemanticProperties.Joint[0]].AccessorContent.AsTangents.ToFloat4Raw();
+				unityData.Joints[indexOffset] = meshAttributes[SemanticProperties.Joint[0]].AccessorContent.AsVec4s.ToFloat4Raw();
 			}
 
 			if (meshAttributes.ContainsKey(SemanticProperties.POSITION))
@@ -1803,6 +1890,7 @@ namespace GodotGLTF
 			{
 				ResourceName = meshName,
 			};
+
 			for (int i = 0; i < primitiveCount; i++)
 			{
 				var array = new Godot.Collections.Array();
@@ -1842,18 +1930,56 @@ namespace GodotGLTF
 							surfaceTool.AddIndex(index);
 					}
 					var vertexArray = (Vector3[])arr[(int)ArrayMesh.ArrayType.Vertex];
+					var normalArray = (Vector3[])arr[(int)ArrayMesh.ArrayType.Normal];
+					Vector2[] uv1Array = (Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv];
+					Vector2[] uv2Array;
+					Vector3[] colorArray;
+					float[] tangentArray;
+					float[] boneArray;
+					float[] weightArray;
 					var hasColor = arr[(int)ArrayMesh.ArrayType.Color] != null;
-					var hasUv1 = arr[(int)ArrayMesh.ArrayType.TexUv] != null;
 					var hasUv2 = arr[(int)ArrayMesh.ArrayType.TexUv2] != null;
 					var hasTangent = arr[(int)ArrayMesh.ArrayType.Tangent] != null;
+					var hasBone = arr[(int)ArrayMesh.ArrayType.Bones] != null;
+					var hasWeight = arr[(int)ArrayMesh.ArrayType.Weights] != null;
+
+					if (hasColor)
+						colorArray = (Vector3[])arr[(int)ArrayMesh.ArrayType.Color];
+					uv1Array = (Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv];
+					if (hasUv2)
+						uv2Array = (Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv2];
+					if (hasTangent)
+						tangentArray = (float[])arr[(int)ArrayMesh.ArrayType.Tangent];
+					if (hasBone)
+						boneArray = (float[])arr[(int)ArrayMesh.ArrayType.Bones];
+					if (hasWeight)
+						weightArray = (float[])arr[(int)ArrayMesh.ArrayType.Weights];
+
 					for (int i = 0; i < vertexArray.Length; i++)
 					{
-						if (hasColor)
-							surfaceTool.AddColor(((Color[])arr[(int)ArrayMesh.ArrayType.Color])[i]);
-						if (hasUv1)
-							surfaceTool.AddUv(((Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv])[i]);
+						surfaceTool.AddUv(((Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv])[i]);
 						if (hasUv2)
 							surfaceTool.AddUv2(((Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv2])[i]);
+						if (hasColor)
+							surfaceTool.AddColor(((Color[])arr[(int)ArrayMesh.ArrayType.Color])[i]);
+						if (hasBone)
+						{
+							int[] bones = new int[4];
+							bones[0] = (int)((float[])arr[(int)ArrayMesh.ArrayType.Bones])[i * 4 + 0];
+							bones[1] = (int)((float[])arr[(int)ArrayMesh.ArrayType.Bones])[i * 4 + 1];
+							bones[2] = (int)((float[])arr[(int)ArrayMesh.ArrayType.Bones])[i * 4 + 2];
+							bones[3] = (int)((float[])arr[(int)ArrayMesh.ArrayType.Bones])[i * 4 + 3];
+							surfaceTool.AddBones(bones);
+						}
+						if (hasWeight)
+						{
+							float[] weights = new float[4];
+							weights[0] = ((float[])arr[(int)ArrayMesh.ArrayType.Weights])[i * 4 + 0];
+							weights[1] = ((float[])arr[(int)ArrayMesh.ArrayType.Weights])[i * 4 + 1];
+							weights[2] = ((float[])arr[(int)ArrayMesh.ArrayType.Weights])[i * 4 + 2];
+							weights[3] = ((float[])arr[(int)ArrayMesh.ArrayType.Weights])[i * 4 + 3];
+							surfaceTool.AddWeights(weights);
+						}
 						surfaceTool.AddNormal(((Vector3[])arr[(int)ArrayMesh.ArrayType.Normal])[i]);
 						if (hasTangent)
 							surfaceTool.AddTangent(new Plane(((float[])arr[(int)ArrayMesh.ArrayType.Tangent])[i * 4],
