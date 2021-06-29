@@ -233,6 +233,7 @@ namespace GLTF
 				var attributeAccessor = kvp.Value;
 				NumericArray resultArray = attributeAccessor.AccessorContent;
 				uint offset = LoadBufferView(attributeAccessor, out byte[] bufferViewCache);
+
 				switch (kvp.Key)
 				{
 					case SemanticProperties.POSITION:
@@ -419,10 +420,55 @@ namespace GLTF
 		{
 			BufferView bufferView = attributeAccessor.AccessorId.Value.BufferView.Value;
 			uint totalOffset = bufferView.ByteOffset + attributeAccessor.Offset;
-#if !NETFX_CORE
-			if (attributeAccessor.Stream is System.IO.MemoryStream)
+			uint offset = LoadBufferViewCache(attributeAccessor.Stream, totalOffset, bufferView.ByteLength, out bufferViewCache);
+
+			if (attributeAccessor.AttributeAccessorSparse != null)
+				ApplySparse(attributeAccessor, bufferViewCache, offset);
+
+			return offset;
+		}
+
+		private static void ApplySparse(AttributeAccessor attributeAccessor, byte[] bufferViewCache, uint offset)
+		{
+			AccessorSparse sparse = attributeAccessor.AccessorId.Value.Sparse;
+			AttributeAccessorSparse attributeAccessorSparse = attributeAccessor.AttributeAccessorSparse;
+
+			BufferView valuesBufferView = sparse.Values.BufferView.Value;
+			uint valuesTotalOffset = valuesBufferView.ByteOffset + attributeAccessorSparse.ValueOffset;
+			BufferView indicesBufferView = sparse.Indices.BufferView.Value;
+			uint indicesTotalOffset = indicesBufferView.ByteOffset + attributeAccessorSparse.IndicesOffset;
+
+			byte[] valuesCache;
+			byte[] indicesCache;
+			var valuesOffset = LoadBufferViewCache(attributeAccessorSparse.ValueStream, valuesTotalOffset, valuesBufferView.ByteLength, out valuesCache);
+			var indicesOffset = LoadBufferViewCache(attributeAccessorSparse.IndicesStream, indicesTotalOffset, indicesBufferView.ByteLength, out indicesCache);
+
+			var indicesAccessor = new Accessor()
 			{
-				MemoryStream memoryStream = (MemoryStream)attributeAccessor.Stream;
+				ByteOffset = (uint)sparse.Indices.ByteOffset,
+				BufferView = sparse.Indices.BufferView,
+				ComponentType = sparse.Indices.ComponentType,
+				Type = GLTFAccessorAttributeType.SCALAR,
+				Count = (uint)sparse.Count,
+			};
+			NumericArray indicesArray = new NumericArray();
+			indicesAccessor.AsUIntArray(ref indicesArray, indicesCache, indicesOffset);
+			var indices = indicesArray.AsUInts;
+
+			int typeSize = (int)valuesBufferView.ByteLength / sparse.Count;
+			for (uint i = 0; i < indices.Length; i++)
+			{
+				uint index = indices[i];
+				System.Buffer.BlockCopy(valuesCache, (int)(valuesOffset + typeSize * i), bufferViewCache, (int)(offset + typeSize * index), typeSize);
+			}
+		}
+
+		private static uint LoadBufferViewCache(Stream stream, uint totalOffset, uint bufferViewLength, out byte[] cache)
+		{
+#if !NETFX_CORE
+			if (stream is System.IO.MemoryStream)
+			{
+				MemoryStream memoryStream = (MemoryStream)stream;
 #if NETFX_CORE || NETSTANDARD1_3
 				if (memoryStream.TryGetBuffer(out System.ArraySegment<byte> arraySegment))
 				{
@@ -430,20 +476,20 @@ namespace GLTF
 					return totalOffset;
 				}
 #else
-				bufferViewCache = memoryStream.GetBuffer();
+				cache = memoryStream.GetBuffer();
 				return totalOffset;
 #endif
 			}
 #endif
-			attributeAccessor.Stream.Position = totalOffset;
-			bufferViewCache = new byte[bufferView.ByteLength];
+			stream.Position = totalOffset;
+			cache = new byte[bufferViewLength];
 
 			// stream.Read only accepts int for length
-			uint remainingSize = bufferView.ByteLength;
+			uint remainingSize = bufferViewLength;
 			while (remainingSize != 0)
 			{
 				int sizeToLoad = (int)System.Math.Min(remainingSize, int.MaxValue);
-				attributeAccessor.Stream.Read(bufferViewCache, (int)(bufferView.ByteLength - remainingSize), sizeToLoad);
+				stream.Read(cache, (int)(bufferViewLength - remainingSize), sizeToLoad);
 				remainingSize -= (uint)sizeToLoad;
 			}
 			return 0;

@@ -666,6 +666,33 @@ namespace GodotGLTF
 			progress?.Report(progressStatus);
 		}
 
+		private async Task<AttributeAccessorSparse> GetAccessorSparse(AccessorSparse sparse)
+		{
+			BufferId valuesbufferIdPair = sparse.Values.BufferView.Value.Buffer;
+			GLTFBuffer valuessBuffer = valuesbufferIdPair.Value;
+			int valuesBufferID = valuesbufferIdPair.Id;
+			BufferId indicesbufferIdPair = sparse.Indices.BufferView.Value.Buffer;
+			GLTFBuffer indicesBuffer = indicesbufferIdPair.Value;
+			int indicesbufferID = indicesbufferIdPair.Id;
+
+			if (_assetCache.BufferCache[valuesBufferID] == null)
+			{
+				await ConstructBuffer(valuessBuffer, valuesBufferID);
+			}
+			if (_assetCache.BufferCache[indicesbufferID] == null)
+			{
+				await ConstructBuffer(indicesBuffer, indicesbufferID);
+			}
+
+			return new AttributeAccessorSparse()
+			{
+				ValueStream = _assetCache.BufferCache[valuesBufferID].Stream,
+				ValueOffset = (uint)_assetCache.BufferCache[valuesBufferID].ChunkOffset,
+				IndicesStream = _assetCache.BufferCache[indicesbufferID].Stream,
+				IndicesOffset = (uint)_assetCache.BufferCache[indicesbufferID].ChunkOffset,
+			};
+		}
+
 		private async Task<BufferCacheData> GetBufferData(BufferId bufferId)
 		{
 			if (_assetCache.BufferCache[bufferId.Id] == null)
@@ -827,17 +854,24 @@ namespace GodotGLTF
 					BufferId bufferIdPair = targetAttribute.Value.Value.BufferView.Value.Buffer;
 					GLTFBuffer buffer = bufferIdPair.Value;
 					int bufferID = bufferIdPair.Id;
+					AttributeAccessorSparse attributeAccessorSparse = null;
 
 					if (_assetCache.BufferCache[bufferID] == null)
 					{
 						await ConstructBuffer(buffer, bufferID);
 					}
 
+					if (targetAttribute.Value.Value.Sparse != null)
+					{
+						attributeAccessorSparse = await GetAccessorSparse(targetAttribute.Value.Value.Sparse);
+					}
+
 					newTargets[i][targetAttribute.Key] = new AttributeAccessor
 					{
 						AccessorId = targetAttribute.Value,
 						Stream = _assetCache.BufferCache[bufferID].Stream,
-						Offset = (uint)_assetCache.BufferCache[bufferID].ChunkOffset
+						Offset = (uint)_assetCache.BufferCache[bufferID].ChunkOffset,
+						AttributeAccessorSparse = attributeAccessorSparse
 					};
 
 				}
@@ -857,12 +891,19 @@ namespace GodotGLTF
 			{
 				var bufferId = attributePair.Value.Value.BufferView.Value.Buffer;
 				var bufferData = await GetBufferData(bufferId);
+				AttributeAccessorSparse attributeAccessorSparse = null;
+
+				if (attributePair.Value.Value.Sparse != null)
+				{
+					attributeAccessorSparse = await GetAccessorSparse(attributePair.Value.Value.Sparse);
+				}
 
 				attributeAccessors[attributePair.Key] = new AttributeAccessor
 				{
 					AccessorId = attributePair.Value,
 					Stream = bufferData.Stream,
-					Offset = (uint)bufferData.ChunkOffset
+					Offset = (uint)bufferData.ChunkOffset,
+					AttributeAccessorSparse = attributeAccessorSparse
 				};
 			}
 
@@ -870,12 +911,19 @@ namespace GodotGLTF
 			{
 				var bufferId = primitive.Indices.Value.BufferView.Value.Buffer;
 				var bufferData = await GetBufferData(bufferId);
+				AttributeAccessorSparse attributeAccessorSparse = null;
+
+				if (primitive.Indices.Value.Sparse != null)
+				{
+					attributeAccessorSparse = await GetAccessorSparse(primitive.Indices.Value.Sparse);
+				}
 
 				attributeAccessors[SemanticProperties.INDICES] = new AttributeAccessor
 				{
 					AccessorId = primitive.Indices,
 					Stream = bufferData.Stream,
-					Offset = (uint)bufferData.ChunkOffset
+					Offset = (uint)bufferData.ChunkOffset,
+					AttributeAccessorSparse = attributeAccessorSparse
 				};
 			}
 			try
@@ -959,11 +1007,19 @@ namespace GodotGLTF
 
 				// set up input accessors
 				BufferCacheData inputBufferCacheData = await GetBufferData(samplerDef.Input.Value.BufferView.Value.Buffer);
+				AttributeAccessorSparse inputAttributeAccessorSparse = null;
+
+				if (samplerDef.Input.Value.Sparse != null)
+				{
+					inputAttributeAccessorSparse = await GetAccessorSparse(samplerDef.Input.Value.Sparse);
+				}
+
 				AttributeAccessor attributeAccessor = new AttributeAccessor
 				{
 					AccessorId = samplerDef.Input,
 					Stream = inputBufferCacheData.Stream,
-					Offset = inputBufferCacheData.ChunkOffset
+					Offset = inputBufferCacheData.ChunkOffset,
+					AttributeAccessorSparse = inputAttributeAccessorSparse
 				};
 
 				samplers[i].Input = attributeAccessor;
@@ -971,11 +1027,19 @@ namespace GodotGLTF
 
 				// set up output accessors
 				BufferCacheData outputBufferCacheData = await GetBufferData(samplerDef.Output.Value.BufferView.Value.Buffer);
+				AttributeAccessorSparse outputAttributeAccessorSparse = null;
+
+				if (samplerDef.Output.Value.Sparse != null)
+				{
+					outputAttributeAccessorSparse = await GetAccessorSparse(samplerDef.Output.Value.Sparse);
+				}
+
 				attributeAccessor = new AttributeAccessor
 				{
 					AccessorId = samplerDef.Output,
 					Stream = outputBufferCacheData.Stream,
-					Offset = outputBufferCacheData.ChunkOffset
+					Offset = outputBufferCacheData.ChunkOffset,
+					AttributeAccessorSparse = outputAttributeAccessorSparse
 				};
 
 				samplers[i].Output = attributeAccessor;
@@ -1663,11 +1727,19 @@ namespace GodotGLTF
 			{
 				var bufferId = skin.InverseBindMatrices.Value.BufferView.Value.Buffer;
 				var bufferData = await GetBufferData(bufferId);
+				AttributeAccessorSparse attributeAccessorSparse = null;
+
+				if (skin.InverseBindMatrices.Value.Sparse != null)
+				{
+					attributeAccessorSparse = await GetAccessorSparse(skin.InverseBindMatrices.Value.Sparse);
+				}
+
 				AttributeAccessor attributeAccessor = new AttributeAccessor
 				{
 					AccessorId = skin.InverseBindMatrices,
 					Stream = _assetCache.BufferCache[bufferId.Id].Stream,
-					Offset = _assetCache.BufferCache[bufferId.Id].ChunkOffset
+					Offset = _assetCache.BufferCache[bufferId.Id].ChunkOffset,
+					AttributeAccessorSparse = attributeAccessorSparse
 				};
 
 				GLTFHelpers.BuildBindPoseSamplers(ref attributeAccessor);

@@ -8,6 +8,7 @@ namespace GLTF
 		public NumericArray AccessorContent { get; set; }
 		public System.IO.Stream Stream { get; set; }
 		public uint Offset { get; set; }
+		public AttributeAccessorSparse AttributeAccessorSparse { get; set; }
 
 		public AttributeAccessor()
 		{
