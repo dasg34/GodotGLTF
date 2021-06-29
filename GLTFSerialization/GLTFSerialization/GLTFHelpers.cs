@@ -911,51 +911,29 @@ namespace GLTF
 				}
 			}
 
-			// scan for common ancestor
-			int? commonAncestorIndex = nodes
-				.Select(n => n.Id)
-				.Aggregate((int?)null, (elder, node) => FindCommonAncestor(elder, node));
-
-			return commonAncestorIndex != null ? new NodeId() { Id = commonAncestorIndex.Value, Root = root } : null;
-
-			int? FindCommonAncestor(int? a, int? b)
+			HashSet<int> allJoints = new HashSet<int>();
+			foreach (var skin in root.Skins)
 			{
-				// trivial cases
-				if (a == null && b == null)
+				foreach (var joint in skin.Joints)
 				{
-					return null;
-				}
-				else if (a != null)
-				{
-					return a;
-				}
-				else if (b != null)
-				{
-					return b;
-				}
-				else if (AncestorOf(a.Value, b.Value))
-				{
-					return a;
-				}
-				else
-				{
-					return FindCommonAncestor(childToParent[a.Value], b.Value);
+					allJoints.Add(joint.Id);
 				}
 			}
 
-			bool AncestorOf(int ancestor, int descendant)
-			{
-				while (childToParent.ContainsKey(descendant))
-				{
-					if (childToParent[descendant] == ancestor)
-					{
-						return true;
-					}
-					descendant = childToParent[descendant];
-				}
+			int node = nodes.First().Id;
+			int parent = childToParent.GetValueOrDefault(node, -1);
 
-				return false;
+			while (parent != -1)
+			{
+				node = (int)parent;
+				if (!allJoints.Contains(node))
+				{
+					break;
+				}
+				parent = childToParent.GetValueOrDefault(node, -1);
 			}
+
+			return new NodeId() { Id = node, Root = root };
 		}
 	}
 }

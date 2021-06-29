@@ -1182,7 +1182,7 @@ namespace GodotGLTF
 						{
 							var targetName = primitives[0].TargetNames != null ? primitives[0].TargetNames[targetIndex] : $"Morphtarget{targetIndex}";
 							int keyframe = clip.AddTrack(Animation.TrackType.Value);
-							clip.TrackSetPath(keyframe, $"{relativePath}/MeshInstance:blend_shapes/{targetName}");
+							clip.TrackSetPath(keyframe, $"{relativePath}:blend_shapes/{targetName}");
 							clip.TrackSetInterpolationLoopWrap(keyframe, false);
 
 							for (int timeIndex = 0, dataIndex = targetIndex; timeIndex < time.Length; dataIndex += targetCount, timeIndex++)
@@ -1257,6 +1257,22 @@ namespace GodotGLTF
 			{
 				sceneObj.SetProcess(showSceneObj);
 
+				// Construct Skins
+				if (_gltfRoot.Skins != null && _gltfRoot.Skins.Count > 0)
+				{
+					for (int i = 0; i < _gltfRoot.Skins.Count; ++i)
+					{
+						var skin = _gltfRoot.Skins[i];
+						await ConstructSkin(skin, i, cancellationToken);
+						var skeleton = _assetCache.SkeletonCache[skin.Skeleton.Id];
+						if (skeleton.GetParent() == null)
+						{
+							sceneObj.AddChild(skeleton);
+							skeleton.Owner = sceneObj;
+						}
+					}
+				}
+
 				for (int i = 0; i < scene.Nodes.Count; ++i)
 				{
 					NodeId node = scene.Nodes[i];
@@ -1297,6 +1313,44 @@ namespace GodotGLTF
 				// If some failure occured during loading, clean up the scene
 				sceneObj.Free();
 				CreatedObject = null;
+
+				if (ex is OutOfMemoryException)
+				{
+					//FIXME
+					//Resources.UnloadUnusedAssets();
+				}
+
+				throw;
+			}
+		}
+
+		private async Task<Godot.Skin> GetSkin(int skinId, CancellationToken cancellationToken)
+		{
+			try
+			{
+				if (_assetCache.SkinCache[skinId] == null)
+				{
+					if (skinId >= _gltfRoot.Skins.Count)
+					{
+						throw new ArgumentException("skinIndex is out of range");
+					}
+
+					var skin = _gltfRoot.Skins[skinId];
+
+					await ConstructSkin(skin, skinId, cancellationToken);
+				}
+
+				return _assetCache.SkinCache[skinId];
+			}
+			catch (Exception ex)
+			{
+				// If some failure occured during loading, remove the node
+
+				if (_assetCache.SkinCache[skinId] != null)
+				{
+					_assetCache.SkinCache[skinId].Free();
+					_assetCache.SkinCache[skinId] = null;
+				}
 
 				if (ex is OutOfMemoryException)
 				{
@@ -1366,7 +1420,90 @@ namespace GodotGLTF
 				return;
 			}
 
-			var nodeObj = new Spatial() { Name = string.IsNullOrEmpty(node.Name) ? ("GLTFNode" + nodeIndex) : node.Name };
+			Spatial nodeObj;
+			var nodeName = string.IsNullOrEmpty(node.Name) ? ("GLTFNode" + nodeIndex) : node.Name;
+			if (node.Mesh != null)
+			{
+				var mesh = node.Mesh.Value;
+				await ConstructMesh(mesh, node.Mesh.Id, cancellationToken);
+				var arrayMesh = _assetCache.MeshCache[node.Mesh.Id].LoadedMesh;
+
+				var materials = node.Mesh.Value.Primitives.Select(p =>
+					p.Material != null ?
+					_assetCache.MaterialCache[p.Material.Id].UnityMaterialWithVertexColor :
+					_defaultLoadedMaterial.UnityMaterialWithVertexColor
+				).ToArray();
+
+				var meshInstance = new MeshInstance() { Name = nodeName };
+				meshInstance.Mesh = arrayMesh;
+				for (int i = 0; i < materials.Length; i++)
+				{
+					arrayMesh.SurfaceSetMaterial(i, (Material)materials[i].Duplicate());
+				}
+
+				var morphTargets = mesh.Primitives[0].Targets;
+				var weights = node.Weights ?? mesh.Weights ??
+					(morphTargets != null ? new List<double>(morphTargets.Select(mt => 0.0)) : null);
+				// morph target weights
+				if (weights != null)
+				{
+					for (int i = 0; i < weights.Count; i++)
+					{
+						meshInstance.Set("blend_shapes/" + arrayMesh.GetBlendShapeName(i), weights[i]);
+					}
+				}
+
+				if (node.Skin != null)
+				{
+					Godot.Skin godotSkin = await GetSkin(node.Skin.Id, cancellationToken);
+					meshInstance.Skin = godotSkin;
+					Godot.Skeleton skeleton = _assetCache.SkeletonCache[node.Skin.Value.Skeleton.Id];
+					skeleton.AddChild(meshInstance);
+				}
+
+				CollisionObject collisionObject = null;
+				var collisionShape = new CollisionShape() {
+					Name = "CollisionShape",
+				};
+
+				switch (Collider)
+				{
+					case ColliderType.Box:
+						var aabb = arrayMesh.GetAabb();
+						collisionObject = new Area() { 
+							Name = "Area",
+						};
+						var boxShape = new BoxShape() {
+							Extents = aabb.Size / 2,
+						};
+						collisionShape.Shape = boxShape;
+						break;
+					case ColliderType.Mesh:
+						collisionObject = new Area() { Name = "Area" };
+						var concavePolygonShape = new ConcavePolygonShape();
+						concavePolygonShape.Data = arrayMesh.GetFaces();
+						collisionShape.Shape = concavePolygonShape;
+						break;
+					case ColliderType.MeshConvex:
+						collisionObject = new StaticBody() { Name = "StaticBody" };
+						concavePolygonShape = new ConcavePolygonShape();
+						concavePolygonShape.Data = arrayMesh.GetFaces();
+						collisionShape.Shape = concavePolygonShape;
+						break;
+				}
+				if (collisionObject != null)
+				{
+					collisionObject.AddChild(collisionShape);
+					meshInstance.AddChild(collisionObject);
+				}
+
+				nodeObj = meshInstance;
+			}
+			else
+			{
+				nodeObj = new Spatial() { Name = nodeName };
+			}
+
 			// If we're creating a really large node, we need it to not be visible in partial stages. So we hide it while we create it
 			nodeObj.SetProcess(false);
 
@@ -1385,8 +1522,22 @@ namespace GodotGLTF
 				foreach (var child in node.Children)
 				{
 					Godot.Node childObj = await GetNode(child.Id, cancellationToken);
+
 					if (childObj.GetParent() == null)
+					{
 						nodeObj.AddChild(childObj);
+					}
+					else if (childObj.GetParent() is Skeleton skeleton)
+					{
+						//re-parent if skeleton is child of bone root.
+						var skeletonParent = skeleton.GetParent();
+						if (skeletonParent.IsInGroup("bones"))
+						{
+							skeletonParent.GetParent()?.RemoveChild(skeletonParent);
+							skeletonParent.RemoveChild(skeleton);
+							nodeObj.AddChild(skeleton);
+						}
+					}
 				}
 			}
 			
@@ -1441,85 +1592,6 @@ namespace GodotGLTF
 			}
 			*/
 
-			if (node.Mesh != null)
-			{
-				var mesh = node.Mesh.Value;
-				await ConstructMesh(mesh, node.Mesh.Id, cancellationToken);
-				var arrayMesh = _assetCache.MeshCache[node.Mesh.Id].LoadedMesh;
-
-				var materials = node.Mesh.Value.Primitives.Select(p =>
-					p.Material != null ?
-					_assetCache.MaterialCache[p.Material.Id].UnityMaterialWithVertexColor :
-					_defaultLoadedMaterial.UnityMaterialWithVertexColor
-				).ToArray();
-
-				var meshInstance = new MeshInstance() { Name = "MeshInstance" };
-				meshInstance.Mesh = arrayMesh;
-				for (int i = 0; i < materials.Length; i++)
-				{
-					arrayMesh.SurfaceSetMaterial(i, (Material)materials[i].Duplicate());
-				}
-
-				var morphTargets = mesh.Primitives[0].Targets;
-				var weights = node.Weights ?? mesh.Weights ??
-					(morphTargets != null ? new List<double>(morphTargets.Select(mt => 0.0)) : null);
-				if (node.Skin != null || weights != null)
-				{
-					if (node.Skin != null)
-						await SetupBones(node.Skin.Value, nodeObj, meshInstance, cancellationToken);
-					else
-						nodeObj.AddChild(meshInstance);
-
-					// morph target weights
-					if (weights != null)
-					{
-						for (int i = 0; i < weights.Count; i++)
-						{
-							meshInstance.Set("blend_shapes/" + arrayMesh.GetBlendShapeName(i), weights[i]);
-						}
-					}
-				}
-				else
-				{
-					nodeObj.AddChild(meshInstance);
-				}
-
-				CollisionObject collisionObject = null;
-				var collisionShape = new CollisionShape() {
-					Name = "CollisionShape",
-				};
-
-				switch (Collider)
-				{
-					case ColliderType.Box:
-						var aabb = arrayMesh.GetAabb();
-						collisionObject = new Area() { 
-							Name = "Area",
-						};
-						var boxShape = new BoxShape() {
-							Extents = aabb.Size / 2,
-						};
-						collisionShape.Shape = boxShape;
-						break;
-					case ColliderType.Mesh:
-						collisionObject = new Area() { Name = "Area" };
-						var concavePolygonShape = new ConcavePolygonShape();
-						concavePolygonShape.Data = arrayMesh.GetFaces();
-						collisionShape.Shape = concavePolygonShape;
-						break;
-					case ColliderType.MeshConvex:
-						collisionObject = new StaticBody() { Name = "StaticBody" };
-						concavePolygonShape = new ConcavePolygonShape();
-						concavePolygonShape.Data = arrayMesh.GetFaces();
-						collisionShape.Shape = concavePolygonShape;
-						break;
-				}
-				if (collisionObject != null)
-				{
-					collisionObject.AddChild(collisionShape);
-					nodeObj.AddChild(collisionObject);
-				}
-			}
 			/* TODO: implement camera (probably a flag to disable for VR as well)
 			if (camera != null)
 			{
@@ -1546,14 +1618,46 @@ namespace GodotGLTF
 			}
 		}
 #endif
-		protected virtual async Task SetupBones(GLTF.Schema.Skin skin, Spatial nodeObj, MeshInstance meshInstance, CancellationToken cancellationToken)
+		protected virtual async Task ConstructSkin(GLTF.Schema.Skin skin, int skinIndex, CancellationToken cancellationToken)
 		{
 			var boneCount = skin.Joints.Count;
 			Godot.Node[] bones = new Godot.Node[boneCount];
-			var godotSkin = new Godot.Skin() { ResourceName = "Skin" };
-			var skeleton = new Skeleton() { Name = "Skeleton" };
+			Godot.Skin godotSkin = new Godot.Skin() { ResourceName = "Skin" };
+			Skeleton skeleton = null;
+			Godot.Node rootBoneNode = null;
+			NodeId rootBoneId;
 
-			// TODO: build bindpose arrays only once per skin, instead of once per node
+			if (skin.Skeleton != null)
+			{
+				rootBoneId = skin.Skeleton;
+				rootBoneNode = await GetNode(rootBoneId.Id, cancellationToken);
+			}
+			else
+			{
+				rootBoneId = GLTFHelpers.FindCommonAncestor(skin.Joints);
+				if (rootBoneId != null)
+				{
+					rootBoneNode = await GetNode(rootBoneId.Id, cancellationToken);
+				}
+				else
+				{
+					throw new Exception("glTF skin joints do not share a root node!");
+				}
+			}
+			if (rootBoneNode != null)
+			{
+				if (!_assetCache.SkeletonCache.TryGetValue(rootBoneId.Id , out skeleton))
+				{
+					skeleton = new Skeleton() { Name = $"Skeleton{rootBoneId.Id}" };
+					if (skin.Skeleton != null)
+					{
+						rootBoneNode.AddChild(skeleton);
+					}
+					_assetCache.SkeletonCache[rootBoneId.Id] = skeleton;
+				}
+				skin.Skeleton = rootBoneId;
+			}
+
 			Matrix4x4[] gltfBindPoses = null;
 			if (skin.InverseBindMatrices != null)
 			{
@@ -1576,13 +1680,15 @@ namespace GodotGLTF
 				Spatial node = await GetNode(skin.Joints[i].Id, cancellationToken) as Spatial;
 				node.AddToGroup("bones");
 				node.SetMeta("skeleton", skeleton);
+
+				var boneIndex = skeleton.GetBoneCount();
 				skeleton.AddBone(node.Name);
-				skeleton.SetBoneRest(i, node.Transform);
+				skeleton.SetBoneRest(boneIndex, node.Transform);
 
 				var parent = node.GetParent();
-				if (parent != null && parent != nodeObj)
+				if (parent != null)
 				{
-					skeleton.SetBoneParent(i, skeleton.FindBone(parent.Name));
+					skeleton.SetBoneParent(boneIndex, skeleton.FindBone(parent.Name));
 					parent.RemoveChild(node);
 				}
 
@@ -1593,32 +1699,7 @@ namespace GodotGLTF
 				godotSkin.SetBindName(i, node.Name);
 			}
 
-			Godot.Node rootBoneNode = null;
-			if (skin.Skeleton != null)
-			{
-				rootBoneNode = await GetNode(skin.Skeleton.Id, cancellationToken);
-			}
-			else
-			{
-				var rootBoneId = GLTFHelpers.FindCommonAncestor(skin.Joints);
-				if (rootBoneId != null)
-				{
-					rootBoneNode = await GetNode(rootBoneId.Id, cancellationToken);
-				}
-				else
-				{
-					throw new Exception("glTF skin joints do not share a root node!");
-				}
-			}
-			if (bones.Contains(rootBoneNode))
-				rootBoneNode = rootBoneNode.GetParent();
-
-			rootBoneNode?.AddChild(nodeObj);
-			nodeObj.AddChild(skeleton);
-			skeleton.AddChild(meshInstance);
-			meshInstance.Owner = skeleton;
-			meshInstance.Skin = godotSkin;
-			meshInstance.Skeleton = meshInstance.GetPathTo(skeleton);
+			_assetCache.SkinCache[skinIndex] = godotSkin;
 		}
 
 		/// <summary>

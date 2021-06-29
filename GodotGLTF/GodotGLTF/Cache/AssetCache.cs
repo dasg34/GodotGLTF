@@ -52,6 +52,16 @@ namespace GodotGLTF.Cache
 		public Godot.Node[] NodeCache { get; private set; }
 
 		/// <summary>
+		/// Cache of loaded skin resources
+		/// </summary>
+		public Godot.Skin[] SkinCache { get; private set; }
+
+		/// <summary>
+		/// Cache of loaded skeleton objects
+		/// </summary>
+		public Dictionary<int, Godot.Skeleton> SkeletonCache { get; private set; }
+
+		/// <summary>
 		/// Creates an asset cache which caches objects used in scene
 		/// </summary>
 		/// <param name="root">A glTF root whose assets will eventually be cached here</param>
@@ -63,6 +73,9 @@ namespace GodotGLTF.Cache
 			MaterialCache = new MaterialCacheData[root.Materials?.Count ?? 0];
 			BufferCache = new BufferCacheData[root.Buffers?.Count ?? 0];
 			MeshCache = new MeshCacheData[root.Meshes?.Count ?? 0];
+
+			SkinCache = new Godot.Skin[root.Skins?.Count ?? 0];
+			SkeletonCache = new Dictionary<int, Skeleton>();
 
 			NodeCache = new Godot.Node[root.Nodes?.Count ?? 0];
 			AnimationCache = new AnimationCacheData[root.Animations?.Count ?? 0];
