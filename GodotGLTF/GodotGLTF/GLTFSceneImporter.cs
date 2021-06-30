@@ -2086,7 +2086,7 @@ namespace GodotGLTF
 					var normalArray = (Vector3[])arr[(int)ArrayMesh.ArrayType.Normal];
 					Vector2[] uv1Array = (Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv];
 					Vector2[] uv2Array;
-					Vector3[] colorArray;
+					Color[] colorArray;
 					float[] tangentArray;
 					float[] boneArray;
 					float[] weightArray;
@@ -2097,7 +2097,7 @@ namespace GodotGLTF
 					var hasWeight = arr[(int)ArrayMesh.ArrayType.Weights] != null;
 
 					if (hasColor)
-						colorArray = (Vector3[])arr[(int)ArrayMesh.ArrayType.Color];
+						colorArray = (Color[])arr[(int)ArrayMesh.ArrayType.Color];
 					uv1Array = (Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv];
 					if (hasUv2)
 						uv2Array = (Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv2];
