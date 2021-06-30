@@ -1369,6 +1369,31 @@ namespace GodotGLTF
 
 				}
 
+				for (int i = 0; i < scene.Nodes.Count; ++i)
+				{
+					NodeId node = scene.Nodes[i];
+					Godot.Node nodeObj = await GetNode(node.Id, cancellationToken);
+					if (nodeObj.IsInGroup("bones"))
+						continue;
+
+					void getallnodes(Godot.Node node, Godot.Node root)
+					{
+						if (node.GetChildCount() > 0)
+						{
+							foreach (var child in node.GetChildren())
+							{
+								getallnodes((Godot.Node)child, root);
+							}
+						}
+						node.Owner = root;
+					}
+
+					getallnodes(nodeObj, sceneObj);
+				}
+				PackedScene ps = new PackedScene();
+				ps.Pack(sceneObj);
+				ResourceSaver.Save("my_scene.tscn", ps);
+
 				CreatedObject = sceneObj;
 				InitializeGltfTopLevelObject();
 			}
