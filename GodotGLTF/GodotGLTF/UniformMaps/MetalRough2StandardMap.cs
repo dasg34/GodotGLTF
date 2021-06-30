@@ -30,7 +30,7 @@ namespace GodotGLTF
 			get { return baseColorOffset; }
 			set {
 				baseColorOffset = value;
-				var unitySpaceVec = new Vector3(baseColorOffset.x, BaseColorXScale.y, 0);
+				var unitySpaceVec = new Vector3(baseColorOffset.x, baseColorOffset.y, 0);
 				_material.Uv1Offset = unitySpaceVec;
 			}
 		}
