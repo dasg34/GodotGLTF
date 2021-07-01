@@ -2075,78 +2075,16 @@ namespace GodotGLTF
 
 				void GenerateTangents(ref Godot.Collections.Array arr, Boolean deIndex = false)
 				{
+					var arrayMeshTemp = new ArrayMesh();
 					var surfaceTool = new SurfaceTool();
-					surfaceTool.Begin(Godot.Mesh.PrimitiveType.Triangles);
-					if (arr[(int)ArrayMesh.ArrayType.Index] != null)
-					{
-						foreach (var index in (int[])arr[(int)ArrayMesh.ArrayType.Index])
-							surfaceTool.AddIndex(index);
-					}
-					var vertexArray = (Vector3[])arr[(int)ArrayMesh.ArrayType.Vertex];
-					var normalArray = (Vector3[])arr[(int)ArrayMesh.ArrayType.Normal];
-					Vector2[] uv1Array = (Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv];
-					Vector2[] uv2Array;
-					Color[] colorArray;
-					float[] tangentArray;
-					float[] boneArray;
-					float[] weightArray;
-					var hasColor = arr[(int)ArrayMesh.ArrayType.Color] != null;
-					var hasUv2 = arr[(int)ArrayMesh.ArrayType.TexUv2] != null;
-					var hasTangent = arr[(int)ArrayMesh.ArrayType.Tangent] != null;
-					var hasBone = arr[(int)ArrayMesh.ArrayType.Bones] != null;
-					var hasWeight = arr[(int)ArrayMesh.ArrayType.Weights] != null;
 
-					if (hasColor)
-						colorArray = (Color[])arr[(int)ArrayMesh.ArrayType.Color];
-					uv1Array = (Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv];
-					if (hasUv2)
-						uv2Array = (Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv2];
-					if (hasTangent)
-						tangentArray = (float[])arr[(int)ArrayMesh.ArrayType.Tangent];
-					if (hasBone)
-						boneArray = (float[])arr[(int)ArrayMesh.ArrayType.Bones];
-					if (hasWeight)
-						weightArray = (float[])arr[(int)ArrayMesh.ArrayType.Weights];
+					arrayMeshTemp.AddSurfaceFromArrays(unityMeshData.Topology[i], array);
+					surfaceTool.CreateFrom(arrayMeshTemp, 0);
 
-					for (int i = 0; i < vertexArray.Length; i++)
-					{
-						surfaceTool.AddUv(((Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv])[i]);
-						if (hasUv2)
-							surfaceTool.AddUv2(((Vector2[])arr[(int)ArrayMesh.ArrayType.TexUv2])[i]);
-						if (hasColor)
-							surfaceTool.AddColor(((Color[])arr[(int)ArrayMesh.ArrayType.Color])[i]);
-						if (hasBone)
-						{
-							int[] bones = new int[4];
-							bones[0] = (int)((float[])arr[(int)ArrayMesh.ArrayType.Bones])[i * 4 + 0];
-							bones[1] = (int)((float[])arr[(int)ArrayMesh.ArrayType.Bones])[i * 4 + 1];
-							bones[2] = (int)((float[])arr[(int)ArrayMesh.ArrayType.Bones])[i * 4 + 2];
-							bones[3] = (int)((float[])arr[(int)ArrayMesh.ArrayType.Bones])[i * 4 + 3];
-							surfaceTool.AddBones(bones);
-						}
-						if (hasWeight)
-						{
-							float[] weights = new float[4];
-							weights[0] = ((float[])arr[(int)ArrayMesh.ArrayType.Weights])[i * 4 + 0];
-							weights[1] = ((float[])arr[(int)ArrayMesh.ArrayType.Weights])[i * 4 + 1];
-							weights[2] = ((float[])arr[(int)ArrayMesh.ArrayType.Weights])[i * 4 + 2];
-							weights[3] = ((float[])arr[(int)ArrayMesh.ArrayType.Weights])[i * 4 + 3];
-							surfaceTool.AddWeights(weights);
-						}
-						surfaceTool.AddNormal(((Vector3[])arr[(int)ArrayMesh.ArrayType.Normal])[i]);
-						if (hasTangent)
-							surfaceTool.AddTangent(new Plane(((float[])arr[(int)ArrayMesh.ArrayType.Tangent])[i * 4],
-															((float[])arr[(int)ArrayMesh.ArrayType.Tangent])[i * 4 + 1],
-															((float[])arr[(int)ArrayMesh.ArrayType.Tangent])[i * 4 + 2],
-															((float[])arr[(int)ArrayMesh.ArrayType.Tangent])[i * 4 + 3]));
-						surfaceTool.AddVertex(((Vector3[])arr[(int)ArrayMesh.ArrayType.Vertex])[i]);
-					}
-					var temp = surfaceTool.CommitToArrays();
 					if (deIndex)
 						surfaceTool.Deindex();
 					surfaceTool.GenerateTangents();
-					var newArray = surfaceTool.CommitToArrays();
-					arr = newArray;
+					arr = surfaceTool.CommitToArrays();
 				}
 
 				if (generateTangents)
