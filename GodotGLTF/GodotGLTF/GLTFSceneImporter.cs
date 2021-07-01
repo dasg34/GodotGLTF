@@ -2536,61 +2536,70 @@ namespace GodotGLTF
 				GLTFImage image = _gltfRoot.Images[sourceId];
 				await ConstructImage(image, sourceId, markGpuOnly, isLinear);
 
-				var source = _assetCache.ImageCache[sourceId];
-				_assetCache.TextureCache[textureIndex].Texture = source;
+				var source = (Texture)_assetCache.ImageCache[sourceId].Duplicate();
+				source.ResourceName = texture.Name;
 
-				/* Sampler not support in godot
-				FilterMode desiredFilterMode;
-				TextureWrapMode desiredWrapMode;
-
+				uint textureFlags = 0;
 				if (texture.Sampler != null)
 				{
 					var sampler = texture.Sampler.Value;
 					switch (sampler.MinFilter)
 					{
-						case MinFilterMode.Nearest:
 						case MinFilterMode.NearestMipmapNearest:
-						case MinFilterMode.LinearMipmapNearest:
-							desiredFilterMode = FilterMode.Point;
-							break;
-						case MinFilterMode.Linear:
 						case MinFilterMode.NearestMipmapLinear:
-							desiredFilterMode = FilterMode.Bilinear;
-							break;
+						case MinFilterMode.LinearMipmapNearest:
 						case MinFilterMode.LinearMipmapLinear:
-							desiredFilterMode = FilterMode.Trilinear;
+							textureFlags |= (uint)Texture.FlagsEnum.Mipmaps;
+							if (sampler.MinFilter == MinFilterMode.LinearMipmapNearest
+								|| sampler.MinFilter == MinFilterMode.LinearMipmapLinear)
+								textureFlags |= (uint)Texture.FlagsEnum.Filter;
+							else
+								textureFlags &= ~(uint)Texture.FlagsEnum.Filter;
+							break;
+						case MinFilterMode.Nearest:
+						case MinFilterMode.Linear:
+							textureFlags &= ~(uint)Texture.FlagsEnum.Mipmaps;
+							if (sampler.MinFilter == MinFilterMode.Linear)
+								textureFlags |= (uint)Texture.FlagsEnum.Filter;
+							else
+								textureFlags &= ~(uint)Texture.FlagsEnum.Filter;
 							break;
 						default:
-							Debug.LogWarning("Unsupported Sampler.MinFilter: " + sampler.MinFilter);
-							desiredFilterMode = FilterMode.Trilinear;
+							GD.PushWarning("Unsupported Sampler.MinFilter: " + sampler.MinFilter);
+							textureFlags |= (uint)Texture.FlagsEnum.Filter;
+							textureFlags |= (uint)Texture.FlagsEnum.Mipmaps;
 							break;
+					}
+
+					if (sampler.WrapS != sampler.WrapT)
+					{
+						GD.PushWarning("Godot does not split texture UV. Only Wraps value will be applied.");
 					}
 
 					switch (sampler.WrapS)
 					{
 						case GLTF.Schema.WrapMode.ClampToEdge:
-							desiredWrapMode = TextureWrapMode.Clamp;
+							textureFlags &= ~(uint)Texture.FlagsEnum.Repeat;
 							break;
 						case GLTF.Schema.WrapMode.Repeat:
-							desiredWrapMode = TextureWrapMode.Repeat;
+							textureFlags |= (uint)Texture.FlagsEnum.Repeat;
 							break;
 						case GLTF.Schema.WrapMode.MirroredRepeat:
-							desiredWrapMode = TextureWrapMode.Mirror;
+							textureFlags |= (uint)Texture.FlagsEnum.MirroredRepeat;
 							break;
 						default:
-							Debug.LogWarning("Unsupported Sampler.WrapS: " + sampler.WrapS);
-							desiredWrapMode = TextureWrapMode.Repeat;
+							GD.PushWarning("Unsupported Sampler.WrapS: " + sampler.WrapS);
+							textureFlags = (uint)Texture.FlagsEnum.Default;
 							break;
 					}
 				}
 				else
 			
 				{
-					desiredFilterMode = FilterMode.Trilinear;
-					desiredWrapMode = TextureWrapMode.Repeat;
+					textureFlags = (uint)Texture.FlagsEnum.Default;
 				}
 
-				var matchSamplerState = source.filterMode == desiredFilterMode && source.wrapMode == desiredWrapMode;
+				var matchSamplerState = source.Flags == textureFlags;
 				if (matchSamplerState || markGpuOnly)
 				{
 					Debug.Assert(_assetCache.TextureCache[textureIndex].Texture == null, "Texture should not be reset to prevent memory leaks");
@@ -2598,19 +2607,17 @@ namespace GodotGLTF
 
 					if (!matchSamplerState)
 					{
-						GD.Print($"Ignoring sampler; filter mode: source {source.filterMode}, desired {desiredFilterMode}; wrap mode: source {source.wrapMode}, desired {desiredWrapMode}");
+						GD.Print($"Ignoring sampler; textrue flags: source {source.Flags}, desired {textureFlags}");
 					}
 				}
 				else
 				{
-					var unityTexture = Object.Instantiate(source);
-					unityTexture.filterMode = desiredFilterMode;
-					unityTexture.wrapMode = desiredWrapMode;
+					var godotTexture = source;
+					godotTexture.Flags = textureFlags;
 
 					Debug.Assert(_assetCache.TextureCache[textureIndex].Texture == null, "Texture should not be reset to prevent memory leaks");
-					_assetCache.TextureCache[textureIndex].Texture = unityTexture;
+					_assetCache.TextureCache[textureIndex].Texture = godotTexture;
 				}
-				*/
 			}
 		}
 #if false // FIXME
