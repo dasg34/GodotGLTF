@@ -316,6 +316,14 @@ namespace GodotGLTF.Extensions
 			return new Godot.Color(color.R, color.G, color.B, color.A);
 		}
 
+		public static Godot.Color ToGodotColorSrgb(this GLTF.Math.Color color)
+		{
+			return new Godot.Color(
+				color.R < 0.0031308f ? 12.92f * color.R : (1.0f + 0.055f) * Mathf.Pow(color.R, 1.0f / 2.4f) - 0.055f,
+				color.G < 0.0031308f ? 12.92f * color.G : (1.0f + 0.055f) * Mathf.Pow(color.G, 1.0f / 2.4f) - 0.055f,
+				color.B < 0.0031308f ? 12.92f * color.B : (1.0f + 0.055f) * Mathf.Pow(color.B, 1.0f / 2.4f) - 0.055f, color.A);
+		}
+
 		public static GLTF.Math.Color ToNumericsColorRaw(this Godot.Color color)
 		{
 			return new GLTF.Math.Color(color.r, color.g, color.b, color.a);

@@ -2078,7 +2078,7 @@ namespace GodotGLTF
 					var arrayMeshTemp = new ArrayMesh();
 					var surfaceTool = new SurfaceTool();
 
-					arrayMeshTemp.AddSurfaceFromArrays(unityMeshData.Topology[i], array);
+					arrayMeshTemp.AddSurfaceFromArrays(unityMeshData.Topology[i], arr);
 					surfaceTool.CreateFrom(arrayMeshTemp, 0);
 
 					if (deIndex)
@@ -2225,7 +2225,7 @@ namespace GodotGLTF
 			{
 				var pbr = def.PbrMetallicRoughness;
 
-				mrMapper.BaseColorFactor = pbr.BaseColorFactor.ToGodotColorRaw();
+				mrMapper.BaseColorFactor = pbr.BaseColorFactor.ToGodotColorSrgb();
 
 				if (pbr.BaseColorTexture != null)
 				{
@@ -2273,7 +2273,7 @@ namespace GodotGLTF
 			{
 				var specGloss = def.Extensions[specGlossExtName] as KHR_materials_pbrSpecularGlossinessExtension;
 
-				sgMapper.DiffuseFactor = specGloss.DiffuseFactor.ToGodotColorRaw();
+				sgMapper.DiffuseFactor = specGloss.DiffuseFactor.ToGodotColorSrgb();
 
 				if (specGloss.DiffuseTexture != null)
 				{
@@ -2347,7 +2347,7 @@ namespace GodotGLTF
 				}
 			}
 
-			mapper.EmissiveFactor = def.EmissiveFactor.ToGodotColorRaw();
+			mapper.EmissiveFactor = def.EmissiveFactor.ToGodotColorSrgb();
 			if (def.EmissiveTexture != null)
 			{
 				TextureId textureId = def.EmissiveTexture.Index;
