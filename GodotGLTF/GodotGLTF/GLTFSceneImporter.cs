@@ -1134,7 +1134,8 @@ namespace GodotGLTF
 			// init clip
 			Animation clip = new Animation
 			{
-				ResourceName = animation.Name ?? string.Format("animation{0}", animationId),
+				// ':' in Godot.Animation name is not acceptable. instead use ascii code.
+				ResourceName = animation.Name ?? string.Format("animation0x3A{0}", animationId),
 				Length = 0
 			};
 			_assetCache.AnimationCache[animationId].LoadedAnimationClip = clip;
