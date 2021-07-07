@@ -15,7 +15,7 @@ namespace GodotGLTF.Extensions
 		/// unity matrix: column vectors, column-major storage, +Y up, +Z forward, +X right, left-handed
 		/// multiply by a negative X scale to convert handedness
 		/// </summary>
-		public static readonly GLTF.Math.Vector3 CoordinateSpaceConversionScale = new GLTF.Math.Vector3(1, 1, 1);
+		public static readonly GLTF.Math.Vector3 CoordinateSpaceConversionScale = new GLTF.Math.Vector3(-1, 1, -1);
 
 		/// <summary>
 		/// Get the converted unity translation, rotation, and scale from a gltf node
@@ -159,10 +159,10 @@ namespace GodotGLTF.Extensions
 		/// <returns>godot transform</returns>
 		public static Transform ToGodotTransformConvert(this GLTF.Math.Matrix4x4 gltfMat)
 		{
-			return new Transform(new Vector3(gltfMat.M11, gltfMat.M21, gltfMat.M31),
-								new Vector3(gltfMat.M12, gltfMat.M22, gltfMat.M32),
-								new Vector3(gltfMat.M13, gltfMat.M23, gltfMat.M33),
-								new Vector3(gltfMat.M14, gltfMat.M24, gltfMat.M34));
+			return new Transform(new Vector3(gltfMat.M11, -gltfMat.M21, gltfMat.M31),
+								new Vector3(-gltfMat.M12, gltfMat.M22, -gltfMat.M32),
+								new Vector3(gltfMat.M13, -gltfMat.M23, gltfMat.M33),
+								new Vector3(-gltfMat.M14, gltfMat.M24, -gltfMat.M34));
 		}
 
 		/*FIXME
