@@ -878,6 +878,29 @@ namespace GodotGLTF
 
 				var att = newTargets[i];
 				GLTFHelpers.BuildTargetAttributes(ref att);
+				TransformTargets(ref att);
+			}
+		}
+
+		// Flip vectors to Unity coordinate system
+		private void TransformTargets(ref Dictionary<string, AttributeAccessor> attributeAccessors)
+		{
+			if (attributeAccessors.ContainsKey(SemanticProperties.POSITION))
+			{
+				AttributeAccessor attributeAccessor = attributeAccessors[SemanticProperties.POSITION];
+				SchemaExtensions.ConvertVector3CoordinateSpace(ref attributeAccessor, SchemaExtensions.CoordinateSpaceConversionScale);
+			}
+
+			if (attributeAccessors.ContainsKey(SemanticProperties.NORMAL))
+			{
+				AttributeAccessor attributeAccessor = attributeAccessors[SemanticProperties.NORMAL];
+				SchemaExtensions.ConvertVector3CoordinateSpace(ref attributeAccessor, SchemaExtensions.CoordinateSpaceConversionScale);
+			}
+
+			if (attributeAccessors.ContainsKey(SemanticProperties.TANGENT))
+			{
+				AttributeAccessor attributeAccessor = attributeAccessors[SemanticProperties.TANGENT];
+				SchemaExtensions.ConvertVector3CoordinateSpace(ref attributeAccessor, SchemaExtensions.CoordinateSpaceConversionScale);
 			}
 		}
 
@@ -934,7 +957,7 @@ namespace GodotGLTF
 			{
 				GD.Print(e.ToString());
 			}
-			//TransformAttributes(ref attributeAccessors);
+			TransformAttributes(ref attributeAccessors);
 		}
 
 		protected void TransformAttributes(ref Dictionary<string, AttributeAccessor> attributeAccessors)
@@ -949,13 +972,13 @@ namespace GodotGLTF
 						SchemaExtensions.ConvertVector3CoordinateSpace(ref aa, SchemaExtensions.CoordinateSpaceConversionScale);
 						break;
 					case SemanticProperties.TANGENT:
-						SchemaExtensions.ConvertVector4CoordinateSpace(ref aa, SchemaExtensions.TangentSpaceConversionScale);
+						//SchemaExtensions.ConvertVector4CoordinateSpace(ref aa, SchemaExtensions.TangentSpaceConversionScale);
 						break;
 					case SemanticProperties.TEXCOORD_0:
 					case SemanticProperties.TEXCOORD_1:
 					case SemanticProperties.TEXCOORD_2:
 					case SemanticProperties.TEXCOORD_3:
-						SchemaExtensions.FlipTexCoordArrayV(ref aa);
+						//SchemaExtensions.FlipTexCoordArrayV(ref aa);
 						break;
 				}
 			}

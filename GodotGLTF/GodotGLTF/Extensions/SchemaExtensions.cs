@@ -15,23 +15,7 @@ namespace GodotGLTF.Extensions
 		/// unity matrix: column vectors, column-major storage, +Y up, +Z forward, +X right, left-handed
 		/// multiply by a negative X scale to convert handedness
 		/// </summary>
-		public static readonly GLTF.Math.Vector3 CoordinateSpaceConversionScale = new GLTF.Math.Vector3(-1, 1, 1);
-
-		/// <summary>
-		/// Define whether the coordinate space scale conversion above means we have a change in handedness.
-		/// This is used when determining the conventional direction of rotation - the right-hand rule states
-		/// that rotations are clockwise in left-handed systems and counter-clockwise in right-handed systems.
-		/// Reversing the direction of one or three axes of reverses the handedness.
-		/// </summary>
-		public static bool CoordinateSpaceConversionRequiresHandednessFlip
-		{
-			get
-			{
-				return CoordinateSpaceConversionScale.X * CoordinateSpaceConversionScale.Y * CoordinateSpaceConversionScale.Z < 0.0f;
-			}
-		}
-
-		public static readonly GLTF.Math.Vector4 TangentSpaceConversionScale = new GLTF.Math.Vector4(-1, 1, 1, -1);
+		public static readonly GLTF.Math.Vector3 CoordinateSpaceConversionScale = new GLTF.Math.Vector3(1, 1, 1);
 
 		/// <summary>
 		/// Get the converted unity translation, rotation, and scale from a gltf node
@@ -147,7 +131,9 @@ namespace GodotGLTF.Extensions
 		/// <returns>unity quaternion</returns>
 		public static Quat ToUnityQuaternionConvert(this GLTF.Math.Quaternion gltfQuat)
 		{
-			return new Quat(gltfQuat.X, gltfQuat.Y, gltfQuat.Z, gltfQuat.W);
+			Vector3 fromAxisOfRotation = new Vector3(gltfQuat.X, gltfQuat.Y, gltfQuat.Z);
+			Vector3 toAxisOfRotation = fromAxisOfRotation * CoordinateSpaceConversionScale.ToUnityVector3Raw();
+			return new Quat(toAxisOfRotation.x, toAxisOfRotation.y, toAxisOfRotation.z, gltfQuat.W);
 		}
 
 		/*FIXME
@@ -200,7 +186,7 @@ namespace GodotGLTF.Extensions
 		/// <returns>unity vector3</returns>
 		public static Vector3 ToUnityVector3Convert(this GLTF.Math.Vector3 gltfVec3)
 		{
-			return gltfVec3.ToUnityVector3Raw();
+			return gltfVec3.ToUnityVector3Raw() * CoordinateSpaceConversionScale.ToUnityVector3Raw();
 		}
 		/*FIXME
 		/// <summary>
