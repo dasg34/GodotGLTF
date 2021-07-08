@@ -1526,7 +1526,7 @@ namespace GodotGLTF
 				meshInstance.Mesh = arrayMesh;
 				for (int i = 0; i < materials.Length; i++)
 				{
-					arrayMesh.SurfaceSetMaterial(i, (Material)materials[i].Duplicate());
+					arrayMesh.SurfaceSetMaterial(i, (Material)materials[i]);
 				}
 
 				var morphTargets = mesh.Primitives[0].Targets;
